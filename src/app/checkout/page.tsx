@@ -15,6 +15,8 @@ export default function Checkout() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [upiConfirmed, setUpiConfirmed] = useState(false);
   const [qrCode, setQrCode] = useState("");
@@ -28,6 +30,54 @@ export default function Checkout() {
       return product ? [{ ...item, product }] : [];
     });
   const total = list.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+
+  function useCurrentLocation() {
+    setLocationMessage("");
+    if (!navigator.geolocation) {
+      setLocationMessage("Location is not available in this browser.");
+      return;
+    }
+
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const query = new URLSearchParams({
+            format: "jsonv2",
+            lat: String(coords.latitude),
+            lon: String(coords.longitude),
+          });
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${query}`);
+          if (!response.ok) {
+            throw new Error(`Address lookup failed with status ${response.status}.`);
+          }
+
+          const result: { display_name?: string } = await response.json();
+          if (!result.display_name) {
+            throw new Error("No address was found for your current location.");
+          }
+          setAddress(result.display_name);
+          setLocationMessage("Your current location was added to the delivery address.");
+        } catch (locationError) {
+          console.error("Could not look up the current location address.", locationError);
+          setLocationMessage("We couldn't find an address for your location. Please enter it manually.");
+        } finally {
+          setLocationLoading(false);
+        }
+      },
+      (locationError) => {
+        setLocationLoading(false);
+        if (locationError.code === locationError.PERMISSION_DENIED) {
+          setLocationMessage("Location permission was denied. Please allow access or enter your address manually.");
+        } else if (locationError.code === locationError.TIMEOUT) {
+          setLocationMessage("We couldn't get your location in time. Please try again or enter your address manually.");
+        } else {
+          setLocationMessage("We couldn't get your location. Please enter your address manually.");
+        }
+      },
+      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 },
+    );
+  }
 
   useEffect(() => {
     setCatalog(getCatalogProducts());
@@ -120,6 +170,15 @@ export default function Checkout() {
           <input className="field" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" required />
           <input className="field" type="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" required />
           <textarea className="field min-h-28 rounded-2xl" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Delivery address, city, state and PIN code" required minLength={8} />
+          <div className="-mt-3 space-y-1">
+            <button type="button" className="btn-secondary" onClick={useCurrentLocation} disabled={locationLoading}>
+              {locationLoading ? "Finding your location…" : "Use my current location"}
+            </button>
+            <p className="text-xs text-charcoal/55">
+              Address lookup uses <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>.
+            </p>
+            {locationMessage && <p role="status" aria-live="polite" className="text-sm text-charcoal/70">{locationMessage}</p>}
+          </div>
 
           <fieldset>
             <legend className="font-serif text-2xl text-forest">Payment method</legend>
