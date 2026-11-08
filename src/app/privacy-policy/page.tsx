@@ -1,0 +1,1 @@
+export default function Page(){return <div className="container-shell max-w-3xl py-12"><h1 className="section-title">Privacy policy</h1><p className="mt-5 rounded-2xl bg-white p-6 text-sm leading-7 text-charcoal/60">Placeholder only. Document actual data collection, purposes, processors, retention, customer rights, cookies and grievance contact before launch.</p></div>}

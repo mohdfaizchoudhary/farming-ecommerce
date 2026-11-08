@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.next-dev/
+.vercel/
+.env*
+!.env.example
+out/
+*.tsbuildinfo
+.DS_Store
