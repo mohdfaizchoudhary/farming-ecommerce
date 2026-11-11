@@ -10,9 +10,14 @@ import { useStore } from "@/components/StoreProvider";
 export default function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const { count } = useStore();
 
   if (pathname.startsWith("/admin")) return null;
+
+  function closeMenu() {
+    setClosing(true);
+  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#dce6df] bg-[#f6f8f3]/95 backdrop-blur-md">
@@ -38,8 +43,8 @@ export default function Header() {
         <form action="/products" className="ml-5 hidden max-w-[260px] flex-1 md:block">
           <label className="sr-only" htmlFor="header-search">Search poultry listings</label>
           <div className="relative">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#65776f]" />
-            <input id="header-search" name="q" placeholder="Search poultry listings" className="field h-10 border-transparent bg-[#e8f0ea] pl-10 text-xs focus:border-[#e88445]" />
+            <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#65776f]" />
+            <input id="header-search" name="q" placeholder="Search poultry listings" className="field search-field h-10 border-transparent bg-[#e8f0ea] text-xs focus:border-[#e88445]" />
           </div>
         </form>
 
@@ -66,7 +71,7 @@ export default function Header() {
           >
             <ShoppingBag size={19} strokeWidth={1.7} />
             {count > 0 && (
-              <span className="absolute right-0 top-0 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-[#e88445] px-1 text-[9px] font-semibold text-white">
+              <span key={count} className="cart-count-enter absolute right-0 top-0 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-[#e88445] px-1 text-[9px] font-semibold text-white">
                 {count}
               </span>
             )}
@@ -77,7 +82,13 @@ export default function Header() {
             aria-label={open ? "Close navigation" : "Open navigation"}
             aria-expanded={open}
             className="grid h-10 w-10 place-items-center rounded-xl text-[#42584e] transition hover:bg-[#e8f0ea] lg:hidden"
-            onClick={() => setOpen(!open)}
+            onClick={() => {
+              if (open) closeMenu();
+              else {
+                setClosing(false);
+                setOpen(true);
+              }
+            }}
           >
             {open ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -85,17 +96,26 @@ export default function Header() {
       </div>
 
       {open && (
-        <nav aria-label="Mobile navigation" className="mobile-nav-enter grid gap-4 border-t border-[#dce6df] bg-[#f6f8f3] px-5 py-5 text-sm lg:hidden">
+        <nav
+          aria-label="Mobile navigation"
+          className={`grid gap-4 border-t border-[#dce6df] bg-[#f6f8f3] px-5 py-5 text-sm lg:hidden ${closing ? "mobile-nav-exit" : "mobile-nav-enter"}`}
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget && event.animationName === "mobile-nav-exit") {
+              setOpen(false);
+              setClosing(false);
+            }
+          }}
+        >
           <form action="/products" className="relative">
             <label className="sr-only" htmlFor="mobile-search">Search poultry listings</label>
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#65776f]" />
-            <input id="mobile-search" name="q" placeholder="Search poultry listings" className="field pl-10 text-xs" />
+            <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#65776f]" />
+            <input id="mobile-search" name="q" placeholder="Search poultry listings" className="field search-field text-xs" />
           </form>
-          <Link href="/" onClick={() => setOpen(false)}>Home</Link>
-          <Link href="/products" onClick={() => setOpen(false)}>Browse listings</Link>
-          <Link href="/categories" onClick={() => setOpen(false)}>Raw Chicken</Link>
-          <Link href="/contact" onClick={() => setOpen(false)}>Sell with us</Link>
-          <Link href="/profile" onClick={() => setOpen(false)}>My account</Link>
+          <Link href="/" onClick={closeMenu}>Home</Link>
+          <Link href="/products" onClick={closeMenu}>Browse listings</Link>
+          <Link href="/categories" onClick={closeMenu}>Raw Chicken</Link>
+          <Link href="/contact" onClick={closeMenu}>Sell with us</Link>
+          <Link href="/profile" onClick={closeMenu}>My account</Link>
         </nav>
       )}
     </header>

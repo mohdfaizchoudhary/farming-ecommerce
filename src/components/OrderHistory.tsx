@@ -28,6 +28,7 @@ export default function OrderHistory({ embedded = false }: { embedded?: boolean 
   const { session, loading } = useAuth();
   const [catalog, setCatalog] = useState<Product[]>([]);
   const [dialog, setDialog] = useState<RequestDialog>(null);
+  const [dialogClosing, setDialogClosing] = useState(false);
   const [requestType, setRequestType] = useState<"replace" | "return">("return");
   const [reason, setReason] = useState("");
   const [originalItemIndex, setOriginalItemIndex] = useState(0);
@@ -58,6 +59,7 @@ export default function OrderHistory({ embedded = false }: { embedded?: boolean 
     const order = orders.find((entry) => entry.id === orderId);
     const firstItem = order?.items[0];
     setDialog({ orderId, mode });
+    setDialogClosing(false);
     setRequestType("return");
     setReason("");
     setOriginalItemIndex(0);
@@ -67,7 +69,7 @@ export default function OrderHistory({ embedded = false }: { embedded?: boolean 
   }
 
   function closeDialog() {
-    setDialog(null);
+    setDialogClosing(true);
     setError("");
   }
 
@@ -227,12 +229,23 @@ export default function OrderHistory({ embedded = false }: { embedded?: boolean 
         </div>
       )}
       {dialog && activeOrder && (
-        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-charcoal/60 p-4" role="presentation">
+        <div
+          className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-charcoal/60 p-4"
+          data-state={dialogClosing ? "closing" : "open"}
+          role="presentation"
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget && event.animationName === "backdrop-exit") {
+              setDialog(null);
+              setDialogClosing(false);
+            }
+          }}
+        >
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="order-request-title"
             className="modal-panel my-auto max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+            data-state={dialogClosing ? "closing" : "open"}
           >
             <h2 id="order-request-title" className="font-serif text-2xl text-forest">
               {dialog.mode === "cancel" ? "Cancel order" : "Replace or return"}

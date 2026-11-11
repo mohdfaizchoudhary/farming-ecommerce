@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ShoppingBag, X } from "lucide-react";
 import { getCatalogProducts } from "@/lib/catalog";
 
 type Item = { productId: string; quantity: number };
@@ -219,7 +220,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [orderRequests, setOrderRequests] = useState<OrderRequest[]>([]);
   const [ready, setReady] = useState(false);
-  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const [notice, setNotice] = useState<{
+    id: number;
+    message: string;
+    kind: "cart" | "success";
+    exiting?: boolean;
+  } | null>(null);
   const noticeSequence = useRef(0);
 
   useEffect(() => {
@@ -286,9 +292,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!notice) return;
-    const timeout = window.setTimeout(() => setNotice(null), 2800);
+    if (notice.exiting) return;
+    const timeout = window.setTimeout(() => {
+      setNotice((current) => current?.id === notice.id ? { ...current, exiting: true } : current);
+    }, 2800);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  function dismissNotice(id: number) {
+    setNotice((current) => current?.id === id ? { ...current, exiting: true } : current);
+  }
 
   const add = (id: string, productName?: string) => {
     setCart((items) => {
@@ -300,6 +313,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setNotice({
       id: ++noticeSequence.current,
       message: `${productName ?? "Product"} added to your bag.`,
+      kind: "cart",
     });
   };
   const buyNow = (id: string) => setCart([{ productId: id, quantity: 1 }]);
@@ -370,6 +384,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
     setOrders((current) => [order, ...current]);
     setCart([]);
+    setNotice({
+      id: ++noticeSequence.current,
+      message: "Order placed successfully.",
+      kind: "success",
+    });
     return order;
   };
 
@@ -437,10 +456,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     <C.Provider value={value}>
       {children}
       {notice && (
-        <div className="store-toast" role="status" aria-live="polite" key={notice.id}>
-          <span className="store-toast-check" aria-hidden="true">✓</span>
+        <div
+          className="store-toast"
+          data-kind={notice.kind}
+          data-state={notice.exiting ? "closing" : "open"}
+          role="status"
+          aria-live="polite"
+          key={notice.id}
+          onAnimationEnd={(event) => {
+            if (event.animationName === "toast-exit") {
+              setNotice((current) => current?.id === notice.id ? null : current);
+            }
+          }}
+        >
+          <span className="store-toast-check" aria-hidden="true">
+            {notice.kind === "success" ? <Check size={16} strokeWidth={2.5} /> : <ShoppingBag size={15} strokeWidth={1.8} />}
+          </span>
           <span>{notice.message}</span>
-          <button type="button" aria-label="Dismiss notification" onClick={() => setNotice(null)}>×</button>
+          <button type="button" aria-label="Dismiss notification" onClick={() => dismissNotice(notice.id)}><X size={17} /></button>
         </div>
       )}
     </C.Provider>

@@ -90,6 +90,10 @@ button {
   color: #91a098;
 }
 
+.search-field {
+  padding-left: 44px;
+}
+
 .btn-primary,
 .btn-secondary {
   display: inline-flex;
@@ -477,11 +481,12 @@ button.zeno-preview-card:hover {
 }
 
 .page-transition {
-  animation: route-enter 280ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
+  animation: route-enter 320ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
 }
 
 .product-card-enter {
-  animation: card-enter 360ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
+  animation: card-enter 360ms cubic-bezier(0.2, 0.65, 0.3, 1);
+  transition: transform 220ms cubic-bezier(0.2, 0.65, 0.3, 1);
 }
 
 .product-card-enter:nth-child(2) { animation-delay: 35ms; }
@@ -509,6 +514,15 @@ button.zeno-preview-card:hover {
   animation: toast-enter 220ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
 }
 
+.store-toast[data-state="closing"] {
+  pointer-events: none;
+  animation: toast-exit 180ms ease-in forwards;
+}
+
+.store-toast[data-kind="success"] {
+  border-color: #9dbca9;
+}
+
 .store-toast-check {
   display: grid;
   width: 24px;
@@ -521,16 +535,37 @@ button.zeno-preview-card:hover {
   font-weight: 700;
 }
 
+.store-toast[data-kind="success"] .store-toast-check {
+  background: #287052;
+  color: #fff;
+}
+
+.store-toast[data-kind="cart"] .store-toast-check {
+  background: #fff0e5;
+  color: #bd5c2c;
+}
+
 .store-toast button {
+  display: grid;
+  place-items: center;
   margin-left: auto;
-  padding: 2px 4px;
+  padding: 2px;
   color: #65776f;
-  font-size: 20px;
-  line-height: 1;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.store-toast button:hover {
+  color: #183a30;
+  transform: scale(1.08);
 }
 
 .modal-backdrop {
   animation: backdrop-enter 180ms ease both;
+}
+
+.modal-backdrop[data-state="closing"] {
+  pointer-events: none;
+  animation: backdrop-exit 180ms ease-in forwards;
 }
 
 .modal-panel,
@@ -538,8 +573,16 @@ button.zeno-preview-card:hover {
   animation: modal-enter 320ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
 }
 
+.modal-panel[data-state="closing"] {
+  animation: modal-exit 180ms ease-in forwards;
+}
+
 .mobile-nav-enter {
   animation: modal-enter 220ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
+}
+
+.mobile-nav-exit {
+  animation: mobile-nav-exit 160ms ease-in forwards;
 }
 
 button:not(:disabled):active,
@@ -556,8 +599,18 @@ a:active {
   transition: transform 600ms cubic-bezier(0.2, 0.65, 0.3, 1);
 }
 
-.product-card-image:hover img {
-  transform: scale(1.055);
+.cart-count-enter {
+  animation: cart-count-pop 260ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .product-card-enter:hover {
+    transform: translateY(-3px);
+  }
+
+  .product-card-image:hover img {
+    transform: scale(1.055);
+  }
 }
 
 .category-track {
@@ -604,11 +657,11 @@ a:active {
 @keyframes route-enter {
   from {
     opacity: 0;
-    transform: translateY(7px);
+    transform: translate3d(0, 10px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -634,9 +687,20 @@ a:active {
   }
 }
 
+@keyframes toast-exit {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
 @keyframes backdrop-enter {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes backdrop-exit {
+  to { opacity: 0; }
 }
 
 @keyframes modal-enter {
@@ -650,6 +714,25 @@ a:active {
   }
 }
 
+@keyframes modal-exit {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes mobile-nav-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes cart-count-pop {
+  0% { opacity: 0.65; transform: scale(0.72); }
+  70% { opacity: 1; transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
 @media (max-width: 900px) {
   .zeno-gsap-slider {
     height: 820px;

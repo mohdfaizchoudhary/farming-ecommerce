@@ -12,12 +12,12 @@ const assurances = [
 ];
 
 const sisterStores = [
-  { name: "SMS Egg Store", category: "Eggs & Egg-Based Foods", icon: "🥚", href: "https://www.flipkart.com/" },
-  { name: "SMS Kitchen", category: "Ready-to-Eat & Ready-to-Cook Foods", icon: "🍲", href: "https://www.amazon.in/" },
-  { name: "SMS Fresh Cuts", category: "Raw Chicken & Meat", icon: "🍗", href: "https://www.bigbasket.com/" },
-  { name: "SMS NutriLife", category: "Supplements & Personal Care", icon: "🧴", href: "https://www.1mg.com/" },
-  { name: "SMS Glow & Care", category: "Skincare & Beauty", icon: "▪️", href: "https://www.nykaa.com/" },
-  { name: "SMS Paw & Farm", category: "Pet Products", icon: "🐾", href: "https://headsupfortails.com/" },
+  { name: "SMS Ovanest", category: "Eggs & Egg-Based Foods", icon: "🥚", href: "https://www.flipkart.com/" },
+  { name: "SMS Claude Kitchen", category: "Ready-to-Eat & Ready-to-Cook Foods", icon: "🍲", href: "https://www.amazon.in/" },
+  { name: "SMS Raw Chicken", category: "Raw Chicken & Meat", icon: "🍗", href: "https://www.bigbasket.com/" },
+  { name: "SMS Beauty", category: "Supplements & Personal Care", icon: "🧴", href: "https://www.1mg.com/" },
+  { name: "SMS Grow Naturally", category: "Skincare & Beauty", icon: "▪️", href: "https://www.nykaa.com/" },
+  { name: "SMS Pet Grow Care", category: "Pet Products", icon: "🐾", href: "https://headsupfortails.com/" },
 ];
 
 export default function Home() {
@@ -86,7 +86,7 @@ export default function Home() {
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-5">
             <div>
               <p className="eyebrow">Marketplace examples</p>
-              <h2 className="section-title mt-3">Poultry listings</h2>
+              <h2 className="section-title mt-3">Poultry Listings</h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-[#65776f]">
                 Example listings show how buyers can discover poultry products. Confirm all listing information directly with the seller.
               </p>

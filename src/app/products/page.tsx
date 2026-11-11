@@ -44,8 +44,8 @@ function Listing() {
       <div className="mt-8 grid gap-3 rounded-[22px] border border-[#dce6df] bg-white p-4 md:grid-cols-[1fr_260px_190px]">
         <label className="relative block">
           <span className="sr-only">Search poultry listings</span>
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#65776f]" />
-          <input className="field pl-10" placeholder="Search poultry listings..." value={query} onChange={(event) => setQuery(event.target.value)} />
+          <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#65776f]" />
+          <input className="field search-field" placeholder="Search poultry listings..." value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
         <label>
           <span className="sr-only">Filter by category</span>
