@@ -6,9 +6,9 @@ export default function Categories() {
   return (
     <div className="container-shell py-12 sm:py-16">
       <p className="eyebrow">SMS Farmstead marketplace</p>
-      <h1 className="section-title mt-3">Poultry categories</h1>
+      <h1 className="section-title mt-3">Shop by category</h1>
       <p className="mt-4 max-w-2xl text-sm leading-7 text-[#65776f]">
-        Browse listings for poultry and poultry-related trade. Review the details on each listing and confirm availability, health information and fulfilment terms with the seller.
+        Browse food, farm, personal care, beauty, pet and rabbit products. Review each listing for availability and product details.
       </p>
 
       <div className="mt-9 grid grid-cols-2 gap-3 lg:grid-cols-4">

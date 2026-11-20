@@ -2,12 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ShoppingBag, X } from "lucide-react";
-import { getCatalogProducts } from "@/lib/catalog";
+import { getCatalogProducts, isMarketplaceProduct, type Product } from "@/lib/catalog";
 
 type Item = { productId: string; quantity: number };
-export type OrderStatus = "placed" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled";
-export type PaymentMethod = "cod" | "upi" | "card" | "unknown";
-export type PaymentStatus = "successful" | "pending";
 export type CustomerRecord = {
   id: string;
   fullName: string;
@@ -17,153 +14,32 @@ export type CustomerRecord = {
   createdAt: string;
   lastSeenAt: string;
 };
-export type StoreOrder = {
-  id: string;
-  date: string;
-  total: number;
-  status: OrderStatus;
-  paymentMethod: PaymentMethod;
-  paymentStatus: PaymentStatus;
-  customerName: string;
-  customerId?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  customerAddress?: string;
-  items: { productId?: string; name: string; quantity: number; price: number }[];
-};
-
-export type OrderRequest = {
-  id: string;
-  orderId: string;
-  type: "cancellation" | "replacement" | "return";
-  status: "requested" | "approved" | "rejected";
-  reason: string;
-  createdAt: string;
-  originalProductName?: string;
-  replacementProductId?: string;
-  replacementProductName?: string;
-  quantity?: number;
-  originalTotal?: number;
-  replacementTotal?: number;
-};
-
-type NewOrderRequest = Omit<OrderRequest, "id" | "status" | "createdAt">;
-
 type StoreContextValue = {
   cart: Item[];
-  orders: StoreOrder[];
+  products: Product[];
+  catalogLoading: boolean;
+  catalogError: string;
+  refreshCatalog: () => Promise<void>;
+  wishlist: string[];
   customers: CustomerRecord[];
-  orderRequests: OrderRequest[];
-  add: (id: string, productName?: string) => void;
-  buyNow: (id: string) => void;
+  add: (id: string, productName?: string, quantity?: number) => void;
+  buyNow: (id: string, quantity?: number) => void;
+  clearCart: () => void;
+  toggleWishlist: (id: string) => void;
   change: (id: string, quantity: number) => void;
   remove: (id: string) => void;
-  placeOrder: (details: {
-    paymentMethod: PaymentMethod;
-    paymentStatus: PaymentStatus;
-    customerName: string;
-    customerId: string;
-    customerEmail: string;
-    customerPhone: string;
-    customerAddress: string;
-  }) => StoreOrder;
   upsertCustomer: (customer: Omit<CustomerRecord, "createdAt" | "lastSeenAt"> & {
     createdAt?: string;
     preserveExistingDetails?: boolean;
   }) => void;
-  updateOrderStatus: (id: string, status: OrderStatus) => void;
-  addOrderRequest: (request: NewOrderRequest) => OrderRequest;
-  updateOrderRequestStatus: (id: string, status: "approved" | "rejected") => void;
   count: number;
 };
 
 const C = createContext<StoreContextValue | null>(null);
-const orderStatuses: OrderStatus[] = ["placed", "confirmed", "processing", "shipped", "delivered", "cancelled"];
-const orderRequestStatuses: OrderRequest["status"][] = ["requested", "approved", "rejected"];
-const orderRequestTypes: OrderRequest["type"][] = ["cancellation", "replacement", "return"];
-const ORDER_REQUESTS_KEY = "p1-order-requests";
 const CUSTOMERS_KEY = "p1-customers";
-const ORDERS_KEY = "p1-orders";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function readOrderRequests(value: string | null): OrderRequest[] {
-  if (!value) return [];
-  const parsed: unknown = JSON.parse(value);
-  if (!Array.isArray(parsed)) return [];
-
-  return parsed.flatMap((entry): OrderRequest[] => {
-    if (!isRecord(entry)
-      || typeof entry.id !== "string"
-      || typeof entry.orderId !== "string"
-      || typeof entry.reason !== "string"
-      || typeof entry.createdAt !== "string"
-      || !orderRequestTypes.includes(entry.type as OrderRequest["type"])
-      || !orderRequestStatuses.includes(entry.status as OrderRequest["status"])) {
-      return [];
-    }
-
-    return [{
-      id: entry.id,
-      orderId: entry.orderId,
-      type: entry.type as OrderRequest["type"],
-      status: entry.status as OrderRequest["status"],
-      reason: entry.reason,
-      createdAt: entry.createdAt,
-      ...(typeof entry.originalProductName === "string" ? { originalProductName: entry.originalProductName } : {}),
-      ...(typeof entry.replacementProductId === "string" ? { replacementProductId: entry.replacementProductId } : {}),
-      ...(typeof entry.replacementProductName === "string" ? { replacementProductName: entry.replacementProductName } : {}),
-      ...(typeof entry.quantity === "number" && Number.isInteger(entry.quantity) ? { quantity: entry.quantity } : {}),
-      ...(typeof entry.originalTotal === "number" ? { originalTotal: entry.originalTotal } : {}),
-      ...(typeof entry.replacementTotal === "number" ? { replacementTotal: entry.replacementTotal } : {}),
-    }];
-  });
-}
-
-function readOrders(value: string | null): StoreOrder[] {
-  if (!value) return [];
-  const parsed: unknown = JSON.parse(value);
-  if (!Array.isArray(parsed)) return [];
-
-  return parsed.map((entry): StoreOrder => {
-    const saved = entry as Partial<StoreOrder>;
-    const savedStatus = typeof saved.status === "string" ? saved.status.toLowerCase() : "";
-    const paymentMethod = saved.paymentMethod === "cod" || saved.paymentMethod === "upi" || saved.paymentMethod === "card"
-      ? saved.paymentMethod
-      : "unknown";
-
-    return {
-      id: typeof saved.id === "string" ? saved.id : `P1-${Date.now().toString().slice(-8)}`,
-      date: typeof saved.date === "string" ? saved.date : new Date().toISOString(),
-      total: typeof saved.total === "number" ? saved.total : 0,
-      status: orderStatuses.includes(savedStatus as OrderStatus) ? savedStatus as OrderStatus : "placed",
-      paymentMethod,
-      paymentStatus: saved.paymentStatus === "successful" ? "successful" : "pending",
-      customerName: typeof saved.customerName === "string" ? saved.customerName : "Customer",
-      ...(typeof saved.customerId === "string" ? { customerId: saved.customerId } : {}),
-      ...(typeof saved.customerEmail === "string" ? { customerEmail: saved.customerEmail } : {}),
-      ...(typeof saved.customerPhone === "string" ? { customerPhone: saved.customerPhone } : {}),
-      ...(typeof saved.customerAddress === "string" ? { customerAddress: saved.customerAddress } : {}),
-      items: Array.isArray(saved.items)
-        ? saved.items.flatMap((item): StoreOrder["items"] => {
-            if (!isRecord(item)
-              || typeof item.name !== "string"
-              || typeof item.quantity !== "number"
-              || typeof item.price !== "number") {
-              return [];
-            }
-            return [{
-              ...(typeof item.productId === "string" ? { productId: item.productId } : {}),
-              name: item.name,
-              quantity: item.quantity,
-              price: item.price,
-            }];
-          })
-        : [],
-    };
-  });
 }
 
 function readCustomers(value: string | null): CustomerRecord[] {
@@ -195,7 +71,7 @@ function readCustomers(value: string | null): CustomerRecord[] {
   });
 }
 
-function readCart(value: string | null, availableProductIds: Set<string>): Item[] {
+function readCart(value: string | null, availableProductIds?: Set<string>): Item[] {
   if (!value) return [];
   const parsed: unknown = JSON.parse(value);
   if (!Array.isArray(parsed)) return [];
@@ -203,7 +79,7 @@ function readCart(value: string | null, availableProductIds: Set<string>): Item[
   return parsed.flatMap((entry): Item[] => {
     if (!isRecord(entry)
       || typeof entry.productId !== "string"
-      || !availableProductIds.has(entry.productId)
+      || (availableProductIds && !availableProductIds.has(entry.productId))
       || typeof entry.quantity !== "number"
       || !Number.isInteger(entry.quantity)
       || entry.quantity < 1) {
@@ -214,11 +90,22 @@ function readCart(value: string | null, availableProductIds: Set<string>): Item[
   });
 }
 
+function readWishlist(value: string | null, availableProductIds?: Set<string>): string[] {
+  if (!value) return [];
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed)) return [];
+  return [...new Set(parsed.filter((id): id is string =>
+    typeof id === "string" && (!availableProductIds || availableProductIds.has(id))))];
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<Item[]>([]);
-  const [orders, setOrders] = useState<StoreOrder[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
+  const [wishlist, setWishlist] = useState<string[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [orderRequests, setOrderRequests] = useState<OrderRequest[]>([]);
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState<{
     id: number;
@@ -228,26 +115,41 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const noticeSequence = useRef(0);
 
+  const refreshCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    try {
+      const loadedProducts = getCatalogProducts().map((product) => {
+        if (!isMarketplaceProduct(product)) {
+          throw new Error("The local catalog contains invalid product data.");
+        }
+        return product;
+      }).filter((product) => product.published !== false);
+      setProducts(loadedProducts);
+      setCatalogLoaded(true);
+      setCatalogError("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load locally saved products.";
+      console.error("Could not load locally saved products.", error);
+      setCatalogError(message);
+      throw error;
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     try {
-      const availableProductIds = new Set(getCatalogProducts().map((product) => product.id));
-      setCart(readCart(localStorage.getItem("p1-cart"), availableProductIds));
-      setOrders(readOrders(localStorage.getItem(ORDERS_KEY)));
+      setCart(readCart(localStorage.getItem("p1-cart")));
       setCustomers(readCustomers(localStorage.getItem(CUSTOMERS_KEY)));
-      setOrderRequests(readOrderRequests(localStorage.getItem(ORDER_REQUESTS_KEY)));
+      try {
+        setWishlist(readWishlist(localStorage.getItem("p1-wishlist")));
+      } catch (error) {
+        console.error("Could not load saved wishlist.", error);
+      }
     } catch (error) {
-      console.error("Could not load saved cart, orders and requests.", error);
+      console.error("Could not load saved cart and customer data.", error);
     }
     setReady(true);
-
-    function syncOrders(event: StorageEvent) {
-      if (event.key !== ORDERS_KEY) return;
-      try {
-        setOrders(readOrders(event.newValue));
-      } catch (error) {
-        console.error("Could not sync saved orders.", error);
-      }
-    }
 
     function syncCustomers(event: StorageEvent) {
       if (event.key !== CUSTOMERS_KEY) return;
@@ -258,37 +160,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    function syncOrderRequests(event: StorageEvent) {
-      if (event.key !== ORDER_REQUESTS_KEY) return;
-      try {
-        setOrderRequests(readOrderRequests(event.newValue));
-      } catch (error) {
-        console.error("Could not sync saved order requests.", error);
-      }
-    }
-
-    window.addEventListener("storage", syncOrders);
     window.addEventListener("storage", syncCustomers);
-    window.addEventListener("storage", syncOrderRequests);
     return () => {
-      window.removeEventListener("storage", syncOrders);
       window.removeEventListener("storage", syncCustomers);
-      window.removeEventListener("storage", syncOrderRequests);
     };
   }, []);
+
+  useEffect(() => {
+    void refreshCatalog().catch(() => undefined);
+    const refresh = () => { void refreshCatalog().catch(() => undefined); };
+    window.addEventListener("catalog-changed", refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("focus", refresh);
+    const interval = window.setInterval(refresh, 30000);
+    return () => {
+      window.removeEventListener("catalog-changed", refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("focus", refresh);
+      window.clearInterval(interval);
+    };
+  }, [refreshCatalog]);
+
+  useEffect(() => {
+    if (!catalogLoaded) return;
+    const availableProductIds = new Set(products.map((product) => product.id));
+    setCart((items) => items.filter((item) => availableProductIds.has(item.productId)));
+    setWishlist((items) => items.filter((id) => availableProductIds.has(id)));
+  }, [catalogLoaded, products]);
 
   useEffect(() => {
     if (ready) localStorage.setItem("p1-cart", JSON.stringify(cart));
   }, [cart, ready]);
   useEffect(() => {
-    if (ready) localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-  }, [orders, ready]);
+    if (ready) localStorage.setItem("p1-wishlist", JSON.stringify(wishlist));
+  }, [wishlist, ready]);
   useEffect(() => {
     if (ready) localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
   }, [customers, ready]);
-  useEffect(() => {
-    if (ready) localStorage.setItem(ORDER_REQUESTS_KEY, JSON.stringify(orderRequests));
-  }, [orderRequests, ready]);
 
   useEffect(() => {
     if (!notice) return;
@@ -303,12 +211,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setNotice((current) => current?.id === id ? { ...current, exiting: true } : current);
   }
 
-  const add = (id: string, productName?: string) => {
+  const add = (id: string, productName?: string, quantity = 1) => {
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new Error("Cart quantity must be a positive whole number.");
+    }
     setCart((items) => {
       const existing = items.find((item) => item.productId === id);
       return existing
-        ? items.map((item) => (item.productId === id ? { ...item, quantity: item.quantity + 1 } : item))
-        : [...items, { productId: id, quantity: 1 }];
+        ? items.map((item) => (item.productId === id ? { ...item, quantity: item.quantity + quantity } : item))
+        : [...items, { productId: id, quantity }];
     });
     setNotice({
       id: ++noticeSequence.current,
@@ -316,7 +227,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       kind: "cart",
     });
   };
-  const buyNow = (id: string) => setCart([{ productId: id, quantity: 1 }]);
+  const buyNow = (id: string, quantity = 1) => setCart([{ productId: id, quantity }]);
+  const clearCart = () => setCart([]);
+  const toggleWishlist = (id: string) => {
+    setWishlist((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
+  };
   const change = (id: string, quantity: number) =>
     setCart((items) =>
       quantity < 1
@@ -331,7 +246,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }) => {
     const now = new Date().toISOString();
     setCustomers((current) => {
-      const existing = current.find((entry) => entry.id === customer.id || entry.email.toLowerCase() === customer.email.toLowerCase());
+      const existing = current.find((entry) => entry.id === customer.id);
       const { preserveExistingDetails, ...details } = customer;
       const savedCustomer: CustomerRecord = {
         id: details.id,
@@ -342,115 +257,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         createdAt: existing?.createdAt ?? customer.createdAt ?? now,
         lastSeenAt: now,
       };
-      return [savedCustomer, ...current.filter((entry) => entry.id !== savedCustomer.id && entry.email.toLowerCase() !== savedCustomer.email.toLowerCase())];
+      return [savedCustomer, ...current.filter((entry) => entry.id !== savedCustomer.id)];
     });
   }, []);
-
-  const placeOrder = (details: {
-    paymentMethod: PaymentMethod;
-    paymentStatus: PaymentStatus;
-    customerName: string;
-    customerId: string;
-    customerEmail: string;
-    customerPhone: string;
-    customerAddress: string;
-  }) => {
-    const catalog = getCatalogProducts();
-    const items = cart.map((item) => {
-      const product = catalog.find((entry) => entry.id === item.productId);
-      if (!product) throw new Error(`Product ${item.productId} is no longer available.`);
-      return { productId: product.id, name: product.name, quantity: item.quantity, price: product.price };
-    });
-    const order: StoreOrder = {
-      id: `P1-${Date.now().toString().slice(-8)}`,
-      date: new Date().toISOString(),
-      total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
-      status: "placed",
-      paymentMethod: details.paymentMethod,
-      paymentStatus: details.paymentStatus,
-      customerName: details.customerName,
-      customerId: details.customerId,
-      customerEmail: details.customerEmail,
-      customerPhone: details.customerPhone,
-      customerAddress: details.customerAddress,
-      items,
-    };
-    upsertCustomer({
-      id: details.customerId,
-      fullName: details.customerName,
-      email: details.customerEmail,
-      phone: details.customerPhone,
-      address: details.customerAddress,
-    });
-    setOrders((current) => [order, ...current]);
-    setCart([]);
-    setNotice({
-      id: ++noticeSequence.current,
-      message: "Order placed successfully.",
-      kind: "success",
-    });
-    return order;
-  };
-
-  const updateOrderStatus = (id: string, status: OrderStatus) => {
-    setOrders((current) => current.map((order) => (order.id === id ? { ...order, status } : order)));
-  };
-
-  const addOrderRequest = (details: NewOrderRequest) => {
-    const order = orders.find((entry) => entry.id === details.orderId);
-    if (!order) throw new Error("This order could not be found.");
-    if (orderRequests.some((request) => request.orderId === details.orderId && request.status === "requested")) {
-      throw new Error("There is already a request awaiting review for this order.");
-    }
-    if (details.type === "cancellation" && ["shipped", "delivered", "cancelled"].includes(order.status)) {
-      throw new Error("This order can no longer be cancelled.");
-    }
-    if (details.type !== "cancellation" && order.status !== "delivered") {
-      throw new Error("Replacement and return requests are available after delivery.");
-    }
-
-    const request: OrderRequest = {
-      ...details,
-      id: `REQ-${crypto.randomUUID()}`,
-      status: "requested",
-      createdAt: new Date().toISOString(),
-    };
-    setOrderRequests((current) => [request, ...current]);
-    return request;
-  };
-
-  const updateOrderRequestStatus = (id: string, status: "approved" | "rejected") => {
-    const request = orderRequests.find((entry) => entry.id === id && entry.status === "requested");
-    if (!request) return;
-
-    setOrderRequests((current) =>
-      current.map((entry) => (entry.id === id && entry.status === "requested" ? { ...entry, status } : entry)),
-    );
-    if (status === "approved" && request.type === "cancellation") {
-      setOrders((current) =>
-        current.map((order) => (order.id === request.orderId ? { ...order, status: "cancelled" } : order)),
-      );
-    }
-  };
 
   const value = useMemo(
     () => ({
       cart,
-      orders,
+      products,
+      catalogLoading,
+      catalogError,
+      refreshCatalog,
+      wishlist,
       customers,
-      orderRequests,
       add,
       buyNow,
+      clearCart,
+      toggleWishlist,
       change,
       remove,
-      placeOrder,
       upsertCustomer,
-      updateOrderStatus,
-      addOrderRequest,
-      updateOrderRequestStatus,
       count: cart.reduce((sum, item) => sum + item.quantity, 0),
     }),
-    [cart, orders, customers, orderRequests],
+    [cart, products, catalogLoading, catalogError, refreshCatalog, wishlist, customers],
   );
   return (
     <C.Provider value={value}>

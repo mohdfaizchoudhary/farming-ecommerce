@@ -20,11 +20,15 @@ create table public.coupons(id uuid primary key default gen_random_uuid(),code t
 create table public.audit_logs(id uuid primary key default gen_random_uuid(),actor_user_id uuid references auth.users(id),action text not null,entity_type text not null,entity_id text,metadata jsonb not null default '{}',created_at timestamptz not null default now());
 create index products_category_status_idx on public.products(category_id,status);
 create index orders_user_created_idx on public.orders(user_id,created_at desc);
-alter table public.profiles enable row level security;alter table public.categories enable row level security;alter table public.products enable row level security;alter table public.product_variants enable row level security;alter table public.addresses enable row level security;alter table public.orders enable row level security;alter table public.order_items enable row level security;alter table public.payments enable row level security;
+alter table public.profiles enable row level security;alter table public.user_roles enable row level security;alter table public.categories enable row level security;alter table public.products enable row level security;alter table public.product_variants enable row level security;alter table public.product_images enable row level security;alter table public.addresses enable row level security;alter table public.orders enable row level security;alter table public.order_items enable row level security;alter table public.payments enable row level security;
 create policy "public categories" on public.categories for select using(active=true);
 create policy "public active products" on public.products for select using(status='active');
 create policy "public active variants" on public.product_variants for select using(active=true);
+create policy "public active product images" on public.product_images for select using(exists(select 1 from public.products p where p.id=product_images.product_id and p.status='active'));
+grant select on public.categories,public.products,public.product_variants,public.product_images to anon,authenticated;
+grant select on public.user_roles to authenticated;
 create policy "read own profile" on public.profiles for select using(auth.uid()=id);
+create policy "read own admin role" on public.user_roles for select to authenticated using(auth.uid()=user_id);
 create policy "update own profile" on public.profiles for update using(auth.uid()=id) with check(auth.uid()=id);
 create policy "own addresses" on public.addresses for all using(auth.uid()=user_id) with check(auth.uid()=user_id);
 create policy "own orders" on public.orders for select using(auth.uid()=user_id);

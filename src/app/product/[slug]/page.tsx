@@ -1,119 +1,146 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { notFound } from "next/navigation";
+import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, BadgeCheck, ShoppingBag, Zap } from "lucide-react";
-import { categories, getCatalogProducts, money, products as sampleProducts } from "@/lib/catalog";
-import { useStore } from "@/components/StoreProvider";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, Heart, Minus, Plus, ShoppingBag, Zap } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import ProductImage from "@/components/ProductImage";
+import { useStore } from "@/components/StoreProvider";
+import { money } from "@/lib/catalog";
 
-export default function ProductPage({ params }: { params: { slug: string } }) {
-  const [catalog, setCatalog] = useState(sampleProducts);
-  const [catalogLoaded, setCatalogLoaded] = useState(false);
-  const [added, setAdded] = useState(false);
-  const { add, buyNow: setBuyNowCart, orders } = useStore();
-  const { session, loading } = useAuth();
+export default function ProductDetailPage() {
+  const params = useParams<{ slug: string }>();
   const router = useRouter();
+  const { add, buyNow, wishlist, toggleWishlist, products: catalog, catalogLoading, catalogError } = useStore();
+  const { session, loading } = useAuth();
+  const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
 
-  useEffect(() => {
-    setCatalog(getCatalogProducts());
-    setCatalogLoaded(true);
-  }, []);
-
-  const product = catalog.find((entry) => entry.slug === params.slug);
-  if (!product && !catalogLoaded) {
-    return <div className="container-shell py-12 text-sm text-[#65776f]">Loading listing…</div>;
+  const product = catalog.find((item) => item.slug === params.slug);
+  if (!product) {
+    if (catalogLoading) {
+      return <div className="container-shell py-12 text-sm text-[#65776f]">Loading listing…</div>;
+    }
+    return (
+      <div className="container-shell py-12">
+        <h1 className="text-2xl font-bold text-[#123C32]">{catalogError ? "Products could not be loaded" : "Product not found"}</h1>
+        {catalogError && <p role="alert" className="mt-2 text-sm text-rose-700">{catalogError}</p>}
+        <Link href="/products" className="mt-4 inline-flex text-sm font-semibold text-[#123C32] underline">
+          Return to products
+        </Link>
+      </div>
+    );
   }
-  if (!product) return notFound();
 
   const listing = product;
-  const category = categories.find((entry) => entry.slug === product.category);
-  const productOrders = session
-    ? orders.filter((order) =>
-        (order.customerId === session.user.id
-          || (!!session.user.email && order.customerEmail?.toLowerCase() === session.user.email.toLowerCase()))
-        && order.items.some((item) => item.productId === product.id || (!item.productId && item.name === product.name)),
-      )
-    : [];
+  const inStock = listing.stock > 0;
+  const saved = wishlist.includes(listing.id);
 
   function addToCart() {
-    add(listing.id, listing.name);
+    add(listing.id, listing.name, quantity);
     setAdded(true);
+    window.setTimeout(() => setAdded(false), 1800);
   }
 
-  function buyNow() {
-    setBuyNowCart(listing.id);
-    if (session) {
-      router.push("/checkout");
-      return;
-    }
-    router.push("/login?next=%2Fcheckout");
+  function handleBuyNow() {
+    buyNow(listing.id, quantity);
+    router.push(session ? "/checkout" : "/login?next=%2Fcheckout");
   }
 
   return (
-    <div className="container-shell py-10 sm:py-14">
-      <Link href="/products" className="inline-flex items-center gap-2 text-sm text-[#65776f] transition hover:text-[#287052]">
-        <ArrowLeft size={15} /> Back to listings
-      </Link>
-      <div className="mt-6 grid gap-8 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
-        <div className="relative overflow-hidden rounded-[28px] bg-[#e8f0ea]">
-          <ProductImage src={product.image} alt={product.name} loading="eager" className="aspect-[4/3] w-full object-cover lg:aspect-square" />
-          <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.12em] text-[#183a30]">
-            Sample marketplace listing
-          </span>
-        </div>
-        <div className="py-2 lg:py-7">
-          <p className="eyebrow">{category?.name ?? "Poultry marketplace"}</p>
-          <h1 className="section-title mt-3">{product.name}</h1>
-          <p className="mt-3 text-sm text-[#65776f]">{product.unit} · Listing {product.id.toUpperCase()}</p>
-          <p className="mt-6 text-3xl font-semibold text-[#183a30]">
-            {money(product.price)}
-            <s className="ml-3 text-base font-normal text-[#91a098]">{money(product.mrp)}</s>
-          </p>
-          <p className="mt-6 text-sm leading-7 text-[#50645a]">{product.description}</p>
+    <div className="bg-[#F7F5EF] min-h-screen pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4">
+        <Link href="/products" className="inline-flex items-center gap-2 text-sm text-[#65776f] hover:text-[#123C32]">
+          <ArrowLeft className="w-4 h-4" /> Back to products
+        </Link>
+      </div>
 
-          <div className="mt-7 rounded-2xl border border-[#dce6df] bg-white p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-[#183a30]">
-              <BadgeCheck size={17} className="text-[#287052]" /> Confirm listing details
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+          <div className="relative overflow-hidden rounded-[2rem] bg-white border border-[#123C32]/10 p-4 sm:p-6">
+            <Image
+              src={listing.image}
+              alt={listing.name}
+              width={1000}
+              height={800}
+              priority
+              unoptimized
+              className="aspect-square w-full rounded-2xl object-cover"
+            />
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-widest text-[#123C32]/65">
+                {listing.unit} · {inStock ? `${listing.stock} available` : "Out of stock"}
+              </span>
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-[#202824] mt-2 leading-tight">
+                {listing.name}
+              </h1>
+              <p className="text-sm sm:text-base text-[#202824]/75 mt-3 leading-relaxed">
+                {listing.description}
+              </p>
             </div>
-            <p className="mt-2 text-xs leading-5 text-[#65776f]">
-              Stock shown is sample data, not live inventory. Confirm availability, seller information, health or batch records, final price and transport arrangements directly with the seller.
-            </p>
+
+            <div className="p-5 rounded-3xl bg-white border border-[#123C32]/10 flex items-center justify-between gap-4">
+              <div>
+                <span className="text-3xl sm:text-4xl font-extrabold text-[#123C32]">{money(listing.price)}</span>
+                {listing.mrp > listing.price && (
+                  <span className="ml-3 text-base text-[#202824]/45 line-through">{money(listing.mrp)}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => toggleWishlist(listing.id)}
+                aria-label={saved ? "Remove from wishlist" : "Add to wishlist"}
+                aria-pressed={saved}
+                className="w-11 h-11 shrink-0 rounded-2xl bg-[#F7F5EF] flex items-center justify-center border border-[#123C32]/10"
+              >
+                <Heart className={`w-5 h-5 ${saved ? "fill-rose-500 text-rose-500" : "text-[#202824]"}`} />
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+              <div className="flex items-center justify-between gap-4 bg-white px-4 py-3 rounded-2xl border border-[#123C32]/15">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((current) => Math.max(1, current - 1))}
+                  aria-label="Decrease quantity"
+                  className="p-1.5 rounded-xl hover:bg-[#E5EDE6] text-[#123C32]"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="font-bold text-base w-6 text-center">{quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((current) => Math.min(listing.stock, current + 1))}
+                  disabled={!inStock || quantity >= listing.stock}
+                  aria-label="Increase quantity"
+                  className="p-1.5 rounded-xl hover:bg-[#E5EDE6] text-[#123C32] disabled:opacity-40"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={addToCart}
+                disabled={!inStock}
+                className="flex-1 py-4 px-6 rounded-2xl bg-white border border-[#123C32] text-[#123C32] font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <ShoppingBag className="w-5 h-5" /> {added ? "Added to Cart" : "Add to Cart"}
+              </button>
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                disabled={!inStock || loading}
+                className="flex-1 py-4 px-6 rounded-2xl bg-[#123C32] text-[#F7F5EF] font-bold flex items-center justify-center gap-2 hover:bg-[#1a5244] disabled:opacity-50"
+              >
+                <Zap className="w-5 h-5 text-[#D9A65A]" /> Buy Now
+              </button>
+            </div>
           </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button onClick={addToCart} className="btn-secondary w-full">
-              <ShoppingBag size={16} /> {added ? "Added to bag" : "Add to cart"}
-            </button>
-            <button onClick={buyNow} disabled={loading} className="btn-primary w-full disabled:cursor-wait disabled:opacity-60">
-              <Zap size={16} /> {loading ? "Checking account…" : "Buy Now"}
-            </button>
-          </div>
-          {session && (
-            <section className="mt-6 rounded-2xl border border-[#dce6df] bg-white p-5">
-              <h2 className="font-serif text-xl text-[#183a30]">Your order status</h2>
-              {productOrders.length ? (
-                <ul className="mt-3 space-y-3">
-                  {productOrders.map((order) => (
-                    <li key={order.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-[#dce6df] pt-3 text-sm">
-                      <span>
-                        <b className="text-[#183a30]">{order.id}</b>
-                        <span className="ml-2 text-xs text-[#65776f]">{new Date(order.date).toLocaleDateString()}</span>
-                      </span>
-                      <span className="rounded-full bg-[#e8f0ea] px-3 py-1 font-medium capitalize text-[#23634e]">{order.status}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-2 text-sm text-[#65776f]">You have no orders for this product.</p>
-              )}
-            </section>
-          )}
-          <p className="mt-4 text-xs leading-5 text-[#65776f]">
-            Illustrative listing only. Review suitability and applicable requirements before arranging a transaction.
-          </p>
         </div>
       </div>
     </div>

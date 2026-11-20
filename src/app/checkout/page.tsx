@@ -1,242 +1,315 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import QRCode from "qrcode";
-import { useStore, type PaymentMethod } from "@/components/StoreProvider";
+import Link from "next/link";
+import { Banknote, CreditCard, Smartphone } from "lucide-react";
+import { toDataURL } from "qrcode";
 import { useAuth } from "@/components/AuthProvider";
-import { getCatalogProducts, money, products as sampleProducts, type Product } from "@/lib/catalog";
+import { useStore } from "@/components/StoreProvider";
+import { getCatalogProducts, money, saveCatalogProducts } from "@/lib/catalog";
+import { placeLocalOrder, type LocalPaymentMethod } from "@/lib/local-orders";
 
-export default function Checkout() {
-  const { cart, placeOrder } = useStore();
+const merchantUpiId = process.env.NEXT_PUBLIC_UPI_ID?.trim() || "9068104055-2@ybl";
+const merchantName = "SMS Farmstead Ventures Pvt. Ltd.";
+
+export default function CheckoutPage() {
+  const router = useRouter();
   const { session, loading } = useAuth();
-  const [error, setError] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const { cart, products, clearCart } = useStore();
+  const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationMessage, setLocationMessage] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
-  const [upiConfirmed, setUpiConfirmed] = useState(false);
-  const [qrCode, setQrCode] = useState("");
-  const [qrError, setQrError] = useState("");
-  const [catalog, setCatalog] = useState<Product[]>(sampleProducts);
-  const router = useRouter();
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<LocalPaymentMethod>("cod");
+  const [upiQr, setUpiQr] = useState("");
+  const [upiQrError, setUpiQrError] = useState("");
+  const [upiQrLoading, setUpiQrLoading] = useState(false);
 
-  const list = cart
-    .flatMap((item) => {
-      const product = catalog.find((entry) => entry.id === item.productId);
-      return product ? [{ ...item, product }] : [];
+  const items = useMemo(() => cart.flatMap((item) => {
+    const product = products.find((entry) => entry.id === item.productId);
+    return product ? [{ ...item, product }] : [];
+  }), [cart, products]);
+  const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const upiIntent = useMemo(() => {
+    const params = new URLSearchParams({
+      pa: merchantUpiId,
+      pn: merchantName,
+      am: total.toFixed(2),
+      cu: "INR",
+      tn: "SMS Farmstead order",
     });
-  const total = list.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-
-  function useCurrentLocation() {
-    setLocationMessage("");
-    if (!navigator.geolocation) {
-      setLocationMessage("Location is not available in this browser.");
-      return;
-    }
-
-    setLocationLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const query = new URLSearchParams({
-            format: "jsonv2",
-            lat: String(coords.latitude),
-            lon: String(coords.longitude),
-          });
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${query}`);
-          if (!response.ok) {
-            throw new Error(`Address lookup failed with status ${response.status}.`);
-          }
-
-          const result: { display_name?: string } = await response.json();
-          if (!result.display_name) {
-            throw new Error("No address was found for your current location.");
-          }
-          setAddress(result.display_name);
-          setLocationMessage("Your current location was added to the delivery address.");
-        } catch (locationError) {
-          console.error("Could not look up the current location address.", locationError);
-          setLocationMessage("We couldn't find an address for your location. Please enter it manually.");
-        } finally {
-          setLocationLoading(false);
-        }
-      },
-      (locationError) => {
-        setLocationLoading(false);
-        if (locationError.code === locationError.PERMISSION_DENIED) {
-          setLocationMessage("Location permission was denied. Please allow access or enter your address manually.");
-        } else if (locationError.code === locationError.TIMEOUT) {
-          setLocationMessage("We couldn't get your location in time. Please try again or enter your address manually.");
-        } else {
-          setLocationMessage("We couldn't get your location. Please enter your address manually.");
-        }
-      },
-      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 },
-    );
-  }
-
-  useEffect(() => {
-    setCatalog(getCatalogProducts());
-  }, []);
+    return `upi://pay?${params.toString()}`;
+  }, [total]);
 
   useEffect(() => {
     if (!loading && !session) router.replace("/login?next=%2Fcheckout");
   }, [loading, router, session]);
 
   useEffect(() => {
-    if (session) {
-      setName(session.user.user_metadata.full_name || "");
-      setEmail(session.user.email || "");
-      setPhone(session.user.user_metadata.phone || "");
-      setAddress(session.user.user_metadata.address || "");
-    }
+    if (!session) return;
+    setFullName((value) => value || String(session.user.user_metadata.full_name ?? ""));
   }, [session]);
 
   useEffect(() => {
-    setUpiConfirmed(false);
     if (paymentMethod !== "upi" || total <= 0) {
-      setQrCode("");
+      setUpiQr("");
+      setUpiQrError("");
+      setUpiQrLoading(false);
       return;
     }
 
-    setQrError("");
-    const paymentUri = new URLSearchParams({
-      pa: "demo@upi",
-      pn: "SMS Farmstead Demo",
-      am: total.toFixed(2),
-      cu: "INR",
-      tn: "Demo order",
-    });
-    void QRCode.toDataURL(`upi://pay?${paymentUri.toString()}`, { width: 220, margin: 2 })
-      .then(setQrCode)
-      .catch((qrGenerationError: unknown) => {
-        console.error("Could not generate the demo UPI QR code.", qrGenerationError);
-        setQrError("The demo QR code could not be generated. Please select another payment method.");
+    let active = true;
+    setUpiQr("");
+    setUpiQrError("");
+    setUpiQrLoading(true);
+    toDataURL(upiIntent, { width: 256, margin: 1, errorCorrectionLevel: "M" })
+      .then((dataUrl) => {
+        if (active) setUpiQr(dataUrl);
+      })
+      .catch((cause: unknown) => {
+        if (active) setUpiQrError(cause instanceof Error ? cause.message : "Could not generate the UPI QR code.");
+      })
+      .finally(() => {
+        if (active) setUpiQrLoading(false);
       });
-  }, [paymentMethod, total]);
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+    return () => {
+      active = false;
+    };
+  }, [paymentMethod, total, upiIntent]);
+
+  async function placeOrder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-
     if (!session) {
       router.replace("/login?next=%2Fcheckout");
       return;
     }
-    if (!list.length) {
-      setError("Your cart is empty.");
+    if (!items.length || items.length !== cart.length) {
+      setError("Your cart contains unavailable products. Remove them and try again.");
       return;
     }
-    if (!email.includes("@") || address.trim().length < 8 || !name.trim() || !phone.trim()) {
-      setError("Enter a valid name, email, phone number and delivery address.");
-      return;
-    }
-    if (paymentMethod === "upi" && !upiConfirmed) {
-      setError("Confirm the demo UPI payment above to continue.");
+    const unavailable = items.find((item) => item.quantity > item.product.stock);
+    if (unavailable) {
+      setError(`Only ${unavailable.product.stock} of ${unavailable.product.name} are currently available.`);
       return;
     }
 
+    setSubmitting(true);
+    setError("");
+    const checkoutDetails = {
+      customerId: session.user.id,
+      customerName: fullName.trim(),
+      customerEmail: session.user.email ?? "",
+      customerPhone: phone.trim(),
+      customerAddress: [address.trim(), city.trim(), state.trim(), postalCode.trim()].filter(Boolean).join(", "),
+      paymentMethod,
+    };
     try {
-      const order = placeOrder({
-        paymentMethod,
-        paymentStatus: "successful",
-        customerName: name.trim(),
-        customerId: session.user.id,
-        customerEmail: email.trim(),
-        customerPhone: phone.trim(),
-        customerAddress: address.trim(),
+      const currentCatalog = getCatalogProducts();
+      const orderItems = cart.map((cartItem) => {
+        const product = currentCatalog.find((entry) => entry.id === cartItem.productId && entry.published !== false);
+        if (!product) throw new Error("Your cart contains unavailable products. Remove them and try again.");
+        if (cartItem.quantity > product.stock) {
+          throw new Error(`Only ${product.stock} of ${product.name} are currently available.`);
+        }
+        return {
+          productId: product.id,
+          name: product.name,
+          quantity: cartItem.quantity,
+          price: product.price,
+        };
       });
-      router.push("/order-success?id=" + order.id);
-    } catch (orderError) {
-      console.error("Could not place the demo order.", orderError);
-      setError("We couldn't place this order. Please refresh and try again.");
+
+      const quantities = new Map(orderItems.map((item) => [item.productId, item.quantity]));
+      const updatedCatalog = currentCatalog.map((product) => ({
+        ...product,
+        stock: product.stock - (quantities.get(product.id) ?? 0),
+      }));
+      saveCatalogProducts(updatedCatalog);
+      window.dispatchEvent(new Event("catalog-changed"));
+      let order: ReturnType<typeof placeLocalOrder>;
+      try {
+        order = placeLocalOrder({ ...checkoutDetails, items: orderItems });
+      } catch (cause) {
+        saveCatalogProducts(currentCatalog);
+        window.dispatchEvent(new Event("catalog-changed"));
+        throw cause;
+      }
+      clearCart();
+      router.push(`/order-success?id=${encodeURIComponent(order.orderNumber)}`);
+    } catch (cause) {
+      console.error("Could not place order.", cause);
+      setError(cause instanceof Error ? cause.message : "We couldn't save your order in this browser.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
-  if (loading || !session) return <div className="container-shell py-12" aria-live="polite">Checking your sign-in…</div>;
+  if (loading || !session) {
+    return <div className="container-shell py-12" role="status">Checking your sign-in…</div>;
+  }
+
+  if (!cart.length) {
+    return (
+      <div className="container-shell py-12">
+        <h1 className="section-title">Your cart is empty</h1>
+        <Link href="/products" className="btn-primary mt-5">Browse products</Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="container-shell py-10 sm:py-12">
-      <p className="eyebrow">Almost there</p>
-      <h1 className="section-title mt-3">Checkout</h1>
-      <div className="mt-7 grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
-        <form onSubmit={submit} autoComplete="off" className="min-w-0 space-y-5 rounded-2xl border border-[#dce6df] bg-white p-4 sm:p-6">
-          <h2 className="font-serif text-2xl text-forest">Delivery details</h2>
-          <input className="field" value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" required />
-          <input className="field" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" required />
-          <input className="field" type="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" required />
-          <textarea className="field min-h-28 rounded-2xl" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Delivery address, city, state and PIN code" required minLength={8} />
-          <div className="-mt-3 space-y-1">
-            <button type="button" className="btn-secondary" onClick={useCurrentLocation} disabled={locationLoading}>
-              {locationLoading ? "Finding your location…" : "Use my current location"}
-            </button>
-            <p className="text-xs text-charcoal/55">
-              Address lookup uses <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>.
-            </p>
-            {locationMessage && <p role="status" aria-live="polite" className="text-sm text-charcoal/70">{locationMessage}</p>}
-          </div>
+    <div className="bg-[#F7F5EF] min-h-screen py-10 sm:py-14">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <p className="text-xs font-bold uppercase tracking-widest text-[#123C32]/65">Order details</p>
+        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#123C32] mt-2">Checkout</h1>
+        <div className="mt-7 grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
+          <form onSubmit={placeOrder} autoComplete="off" className="bg-white rounded-3xl p-5 sm:p-7 border border-[#123C32]/10 space-y-4">
+            <h2 className="font-serif text-xl font-bold text-[#123C32]">Delivery Address</h2>
+            <label className="block text-sm font-medium text-[#123C32]">
+              Recipient name
+              <input required maxLength={200} value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-2 w-full rounded-xl bg-[#F7F5EF] px-4 py-3 text-sm" autoComplete="name" />
+            </label>
+            <label className="block text-sm font-medium text-[#123C32]">
+              Phone number
+              <input required minLength={5} maxLength={40} value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2 w-full rounded-xl bg-[#F7F5EF] px-4 py-3 text-sm" autoComplete="tel" />
+            </label>
+            <label className="block text-sm font-medium text-[#123C32]">
+              Address
+              <textarea required minLength={5} maxLength={500} value={address} onChange={(event) => setAddress(event.target.value)} className="mt-2 w-full rounded-xl bg-[#F7F5EF] px-4 py-3 text-sm" autoComplete="street-address" rows={3} />
+            </label>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <label className="block text-sm font-medium text-[#123C32]">
+                City
+                <input required value={city} onChange={(event) => setCity(event.target.value)} className="mt-2 w-full rounded-xl bg-[#F7F5EF] px-3 py-3 text-sm" autoComplete="address-level2" />
+              </label>
+              <label className="block text-sm font-medium text-[#123C32]">
+                State
+                <input value={state} onChange={(event) => setState(event.target.value)} className="mt-2 w-full rounded-xl bg-[#F7F5EF] px-3 py-3 text-sm" autoComplete="address-level1" />
+              </label>
+              <label className="block text-sm font-medium text-[#123C32]">
+                PIN code
+                <input required minLength={3} maxLength={20} value={postalCode} onChange={(event) => setPostalCode(event.target.value)} className="mt-2 w-full rounded-xl bg-[#F7F5EF] px-3 py-3 text-sm" autoComplete="postal-code" />
+              </label>
+            </div>
 
-          <fieldset>
-            <legend className="font-serif text-2xl text-forest">Payment method</legend>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <fieldset className="space-y-3">
+              <legend className="font-serif text-xl font-bold text-[#123C32]">Payment method</legend>
               {([
-                ["cod", "Cash on Delivery"],
-                ["upi", "UPI"],
-                ["card", "Credit / Debit Card"],
-              ] as const).map(([method, label]) => (
-                <label key={method} className={`flex min-w-0 cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm leading-5 ${paymentMethod === method ? "border-forest bg-sage text-forest" : "border-forest/15"}`}>
-                  <input
-                    className="mt-1 shrink-0 accent-[#123C32]"
-                    type="radio"
-                    name="paymentMethod"
-                    value={method}
-                    checked={paymentMethod === method}
-                    onChange={() => setPaymentMethod(method)}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          {paymentMethod === "upi" && (
-            <div className="rounded-2xl border border-forest/10 bg-ivory p-4 text-center">
-              <h3 className="font-semibold text-forest">Scan to pay {money(total)}</h3>
-              {qrCode ? <img src={qrCode} alt={`Demo UPI QR code for ${money(total)}`} className="mx-auto mt-3 h-[220px] w-[220px]" /> : <p className="py-10 text-sm text-charcoal/55">{qrError || "Generating QR code…"}</p>}
-              <p className="mt-2 text-xs text-charcoal/60">Demo QR only · no payment is processed. The QR contains the exact order amount.</p>
-              <button type="button" disabled={!qrCode || Boolean(qrError)} onClick={() => setUpiConfirmed(true)} className="btn-secondary mt-4 disabled:opacity-50">
-                {upiConfirmed ? "Demo payment confirmed" : "I've completed the demo payment"}
-              </button>
-            </div>
-          )}
-
-          {paymentMethod === "card" && (
-            <fieldset className="space-y-3 rounded-2xl border border-forest/10 bg-ivory p-4">
-              <legend className="px-1 font-semibold text-forest">Card details</legend>
-              <input className="field" type="text" inputMode="numeric" minLength={12} maxLength={19} placeholder="Card number" aria-label="Card number" required />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input className="field" type="text" placeholder="MM/YY" aria-label="Card expiry date" required />
-                <input className="field" type="password" inputMode="numeric" minLength={3} maxLength={4} placeholder="CVV" aria-label="Card security code" required />
-              </div>
-              <p className="text-xs leading-5 text-charcoal/60">Demo form only. Card details are not sent, processed, or saved; submission only simulates a payment.</p>
+                { value: "upi", label: "UPI", description: "Scan a QR with the order amount prefilled", icon: Smartphone },
+                { value: "card", label: "Credit Card / Debit Card", description: "Card form is shown in demo mode only", icon: CreditCard },
+                { value: "cod", label: "Cash on Delivery", description: "Pay when your order arrives", icon: Banknote },
+              ] as const).map((option) => {
+                const Icon = option.icon;
+                return (
+                  <label
+                    key={option.value}
+                    className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 transition-colors ${
+                      paymentMethod === option.value
+                        ? "border-[#123C32] bg-[#E5EDE6]"
+                        : "border-[#123C32]/10 bg-white hover:border-[#123C32]/40"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value={option.value}
+                      checked={paymentMethod === option.value}
+                      onChange={() => setPaymentMethod(option.value)}
+                      className="accent-[#123C32]"
+                    />
+                    <Icon className="h-5 w-5 shrink-0 text-[#123C32]" aria-hidden="true" />
+                    <span className="flex-1">
+                      <span className="block text-sm font-bold text-[#123C32]">{option.label}</span>
+                      <span className="mt-0.5 block text-xs text-[#202824]/60">{option.description}</span>
+                    </span>
+                  </label>
+                );
+              })}
+              {paymentMethod === "upi" && (
+                <div className="rounded-2xl border border-[#123C32]/10 bg-[#F7F5EF] p-4 text-center">
+                  <h3 className="font-semibold text-[#123C32]">Scan to pay</h3>
+                  <p className="mt-1 text-sm text-[#202824]/70">Pay {money(total)} to {merchantUpiId}</p>
+                  <div className="mx-auto mt-3 flex min-h-64 w-64 items-center justify-center rounded-xl bg-white p-3">
+                    {upiQrLoading ? (
+                      <p role="status" className="text-sm text-[#202824]/60">Generating QR code…</p>
+                    ) : upiQr ? (
+                      <img src={upiQr} alt={`UPI payment QR for ${money(total)}`} className="h-full w-full" />
+                    ) : (
+                      <p role="alert" className="text-sm text-rose-700">
+                        {upiQrError || "A QR code is available for orders with a positive total."}
+                      </p>
+                    )}
+                  </div>
+                  <a href={upiIntent} className="mt-3 inline-block text-sm font-semibold text-[#123C32] underline">
+                    Open a UPI app on this device
+                  </a>
+                  <p className="mt-2 text-left text-xs text-[#202824]/70">
+                    The amount is prefilled in the payment app. After paying, return here and place the order. This local store cannot verify UPI transfers automatically; the admin must confirm payment separately.
+                  </p>
+                </div>
+              )}
+              {paymentMethod === "card" && (
+                <div className="space-y-3 rounded-2xl border border-[#123C32]/10 bg-[#F7F5EF] p-4">
+                  <h3 className="font-semibold text-[#123C32]">Card details</h3>
+                  <p className="text-xs text-rose-700">
+                    Demo only. Do not enter real card details: these fields are not sent, processed, or saved.
+                  </p>
+                  <label className="block text-xs font-medium text-[#123C32]">
+                    Name on card
+                    <input type="text" autoComplete="off" placeholder="Demo cardholder" className="mt-1.5 w-full rounded-xl bg-white px-3 py-2.5 text-sm" />
+                  </label>
+                  <label className="block text-xs font-medium text-[#123C32]">
+                    Card number
+                    <input type="text" inputMode="numeric" autoComplete="off" maxLength={19} placeholder="Demo card number" className="mt-1.5 w-full rounded-xl bg-white px-3 py-2.5 text-sm" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block text-xs font-medium text-[#123C32]">
+                      Expiry date
+                      <input type="text" autoComplete="off" maxLength={5} placeholder="MM/YY" className="mt-1.5 w-full rounded-xl bg-white px-3 py-2.5 text-sm" />
+                    </label>
+                    <label className="block text-xs font-medium text-[#123C32]">
+                      CVV
+                      <input type="password" inputMode="numeric" autoComplete="off" maxLength={4} placeholder="Demo CVV" className="mt-1.5 w-full rounded-xl bg-white px-3 py-2.5 text-sm" />
+                    </label>
+                  </div>
+                </div>
+              )}
+              {paymentMethod === "cod" && (
+                <p className="rounded-xl bg-[#E5EDE6] p-3 text-xs text-[#123C32]">
+                  No payment details are needed now. The order and Cash on Delivery selection are saved locally in this browser.
+                </p>
+              )}
             </fieldset>
-          )}
+            {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
+            <button
+              type="submit"
+              disabled={submitting || !items.length}
+              className="w-full rounded-2xl bg-[#123C32] px-5 py-4 font-bold text-white disabled:opacity-50"
+            >
+              {submitting ? "Placing order…" : `Place Order · ${money(total)}`}
+            </button>
+          </form>
 
-          {paymentMethod === "cod" && <p className="rounded-xl bg-sage p-3 text-sm text-forest">Cash on Delivery is marked successful in this temporary demo.</p>}
-          {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-          <button className="btn-primary w-full">Place demo order · {money(total)}</button>
-        </form>
-
-        <aside className="h-fit rounded-2xl border border-[#dce6df] bg-sage p-5 sm:p-6 lg:sticky lg:top-28">
-          <h2 className="font-serif text-2xl text-forest">Order total</h2>
-          <div className="mt-5 flex justify-between"><span>Subtotal</span><b>{money(total)}</b></div>
-          <p className="mt-3 text-xs text-charcoal/55">Shipping and tax must be configured server-side for production.</p>
-          <p className="mt-4 border-t border-forest/10 pt-4 text-xs leading-5 text-charcoal/60">Temporary demo checkout: no real money is moved, and card data is never saved.</p>
-        </aside>
+          <aside className="bg-[#123C32] text-white rounded-3xl p-6 space-y-4 lg:sticky lg:top-24">
+            <h2 className="font-serif text-xl font-bold">Order Summary</h2>
+            <ul className="space-y-3 border-y border-white/15 py-4 text-sm">
+              {items.map((item) => (
+                <li key={item.productId} className="flex justify-between gap-3">
+                  <span>{item.product.name} × {item.quantity}</span>
+                  <b className="shrink-0">{money(item.product.price * item.quantity)}</b>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-between font-bold"><span>Total</span><span>{money(total)}</span></div>
+          </aside>
+        </div>
       </div>
     </div>
   );

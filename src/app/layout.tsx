@@ -6,8 +6,8 @@ import { StoreProvider } from "@/components/StoreProvider";
 import { AuthProvider } from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "SMS Farmstead",
-  description: "Browse poultry listings, hatching eggs, layer birds, chicks and rabbits on SMS Farmstead.",
+  title: "SMS Farmstead Ventures Pvt. Ltd.",
+  description: "Shop farm-fresh foods, meat, supplements, skincare, pet products and rabbits from SMS Farmstead Ventures Pvt. Ltd.",
   icons: {
     icon: "/sms-farmstead-logo.jpeg",
   },

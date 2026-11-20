@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { UserRound } from "lucide-react";
-import { isAdminAuthenticated, setAdminAuthenticated } from "@/lib/admin";
+import { requestApi } from "@/lib/client-api";
 
 const navItems = [
   ["Products overview", "/admin"],
@@ -18,6 +18,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
+  const [accessError, setAccessError] = useState("");
 
   useEffect(() => {
     if (pathname === "/admin/login") {
@@ -25,13 +27,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
-    if (!isAdminAuthenticated()) {
-      router.replace(`/admin/login?next=${encodeURIComponent(pathname || "/admin")}`);
-      return;
-    }
-
-    setReady(true);
-  }, [pathname, router]);
+    let active = true;
+    setReady(false);
+    requestApi("/api/admin/session")
+      .then(() => {
+        if (active) {
+          setAuthorized(true);
+          setAccessError("");
+          setReady(true);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setAuthorized(false);
+          const message = cause instanceof Error ? cause.message : "Admin access could not be verified.";
+          setAccessError(message);
+          setReady(true);
+        }
+      });
+    return () => { active = false; };
+  }, [pathname]);
 
   if (pathname === "/admin/login") {
     return <>{children}</>;
@@ -39,6 +54,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!ready) {
     return <div className="container-shell py-12 text-sm text-charcoal/60">Checking admin access…</div>;
+  }
+  if (!authorized) {
+    return (
+      <div className="container-shell py-12">
+        <h1 className="text-xl font-bold text-rose-700">Admin access denied</h1>
+        <p role="alert" className="mt-2 text-sm text-charcoal/70">{accessError || "Your account does not have an admin role."}</p>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await requestApi("/api/admin/session", { method: "DELETE" });
+              router.replace("/admin/login");
+            } catch (cause) {
+              setAccessError(cause instanceof Error ? cause.message : "Could not sign out.");
+            }
+          }}
+          className="btn-secondary mt-4"
+        >
+          Sign out
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -71,9 +108,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <button
             type="button"
-            onClick={() => {
-              setAdminAuthenticated(false);
-              router.push("/admin/login");
+            onClick={async () => {
+              try {
+                await requestApi("/api/admin/session", { method: "DELETE" });
+                router.replace("/admin/login");
+              } catch (cause) {
+                setAccessError(cause instanceof Error ? cause.message : "Could not sign out.");
+                return;
+              }
             }}
             className="mt-6 w-full rounded-xl border border-white/25 px-3 py-2 text-sm text-white/90 hover:bg-white/5"
           >

@@ -272,7 +272,9 @@ export default function HomeHero() {
   );
 
   useEffect(() => {
-    const timer = window.setInterval(() => moveSlide(1), 3000);
+    const timer = window.setInterval(() => {
+      if (!document.hidden) moveSlide(1);
+    }, 3000);
     return () => window.clearInterval(timer);
   }, [moveSlide]);
 
@@ -398,3 +400,215 @@ export default function HomeHero() {
     </section>
   );
 }
+
+
+
+
+// "use client";
+
+// import React, { useState, useEffect } from "react";
+// import Link from "next/link";
+// import { motion, AnimatePresence } from "framer-motion";
+// import {
+//   ArrowRight,
+//   ChevronLeft,
+//   ChevronRight,
+//   ShieldCheck,
+//   Truck,
+//   ThermometerSnowflake,
+//   Award,
+// } from "lucide-react";
+
+// const HERO_SLIDES = [
+//   {
+//     id: 1,
+//     badge: "7 Specialized Storefronts • One Unified Cart",
+//     titlePrefix: "From Ethical Farms to",
+//     titleHighlight: "Pure Daily Living.",
+//     description:
+//       "Shop certified livestock, farm-fresh eggs, cold-chain meats, ready-to-cook delicacies, clinical nutrition, botanical skincare, and pet essentials—delivered with batch-level traceability.",
+//     primaryCta: { label: "Explore Catalogue", href: "/products" },
+//     secondaryCta: { label: "Bulk & Farm Enquiries", href: "/wholesale" },
+//   },
+//   {
+//     id: 2,
+//     badge: "0–4°C Cold-Chain • Farm-to-Kitchen Freshness",
+//     titlePrefix: "Hygienic Cuts &",
+//     titleHighlight: "Ready-to-Cook Feasts.",
+//     description:
+//       "Antibiotic-free fresh chicken, farm brown eggs, and chef-crafted momos, seekh kebabs, and nuggets sealed immediately after chilling for peak freshness.",
+//     primaryCta: { label: "Shop Fresh Meat & Eggs", href: "/category/raw-meat" },
+//     secondaryCta: { label: "View Ready-to-Cook", href: "/category/ready-to-cook" },
+//   },
+//   {
+//     id: 3,
+//     badge: "Vet Certified Livestock & Hatching Eggs",
+//     titlePrefix: "Trusted Poultry &",
+//     titleHighlight: "Livestock Supply.",
+//     description:
+//       "Vaccinated day-old chicks, fertile Kadaknath & layer hatching eggs, and certified farm rabbits with complete batch and health documentation.",
+//     primaryCta: { label: "Browse Livestock", href: "/category/farming-livestock" },
+//     secondaryCta: { label: "Wholesale Orders", href: "/wholesale" },
+//   },
+// ];
+
+// export default function HomeHero() {
+//   const [currentSlide, setCurrentSlide] = useState(0);
+
+//   useEffect(() => {
+//     const timer = setInterval(() => {
+//       setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+//     }, 6000);
+//     return () => clearInterval(timer);
+//   }, []);
+
+//   const nextSlide = () =>
+//     setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+//   const prevSlide = () =>
+//     setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+
+//   const slide = HERO_SLIDES[currentSlide];
+
+//   return (
+//     <section className="relative overflow-hidden bg-[#F7F5EF]">
+//       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 pb-8">
+//         <div className="relative rounded-[2rem] sm:rounded-[2.5rem] bg-[#123C32] text-[#F7F5EF] p-6 sm:p-12 lg:p-16 overflow-hidden shadow-2xl">
+//           {/* Ambient Animated Glow Orbs */}
+//           <motion.div
+//             animate={{ scale: [1, 1.15, 1], opacity: [0.2, 0.32, 0.2] }}
+//             transition={{ duration: 8, repeat: Infinity }}
+//             className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#D9A65A] blur-3xl pointer-events-none"
+//           />
+//           <div className="absolute -bottom-32 -left-20 w-80 h-80 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
+
+//           <div className="relative z-10 grid lg:grid-cols-12 gap-10 items-center">
+//             {/* Left Animated Slider Content */}
+//             <div className="lg:col-span-7">
+//               <AnimatePresence mode="wait">
+//                 <motion.div
+//                   key={slide.id}
+//                   initial={{ opacity: 0, x: 20 }}
+//                   animate={{ opacity: 1, x: 0 }}
+//                   exit={{ opacity: 0, x: -20 }}
+//                   transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+//                   className="space-y-6"
+//                 >
+//                   <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#F7F5EF]/10 border border-[#D9A65A]/40 text-[#D9A65A] text-xs sm:text-sm font-semibold">
+//                     <span>{slide.badge}</span>
+//                   </div>
+
+//                   <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1]">
+//                     {slide.titlePrefix}{" "}
+//                     <span className="text-gradient-gold">
+//                       {slide.titleHighlight}
+//                     </span>
+//                   </h1>
+
+//                   <p className="text-base sm:text-lg text-[#F7F5EF]/80 max-w-2xl leading-relaxed">
+//                     {slide.description}
+//                   </p>
+
+//                   <div className="flex flex-wrap items-center gap-4 pt-2">
+//                     <Link
+//                       href={slide.primaryCta.href}
+//                       className="inline-flex items-center gap-2 bg-[#D9A65A] text-[#202824] font-bold px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl hover:bg-[#e5b56d] transition-all shadow-lg hover:shadow-[#D9A65A]/30"
+//                     >
+//                       {slide.primaryCta.label} <ArrowRight className="w-5 h-5" />
+//                     </Link>
+//                     <Link
+//                       href={slide.secondaryCta.href}
+//                       className="inline-flex items-center gap-2 bg-[#F7F5EF]/10 hover:bg-[#F7F5EF]/20 text-[#F7F5EF] font-semibold px-6 py-3.5 sm:py-4 rounded-2xl border border-[#F7F5EF]/20 transition-all"
+//                     >
+//                       {slide.secondaryCta.label}
+//                     </Link>
+//                   </div>
+//                 </motion.div>
+//               </AnimatePresence>
+
+//               {/* Slider Dots & Arrow Controls */}
+//               <div className="flex items-center justify-between sm:justify-start gap-6 mt-8 pt-6 border-t border-[#F7F5EF]/10">
+//                 <div className="flex items-center gap-2">
+//                   {HERO_SLIDES.map((s, idx) => (
+//                     <button
+//                       key={s.id}
+//                       onClick={() => setCurrentSlide(idx)}
+//                       aria-label={`Slide ${idx + 1}`}
+//                       className={`h-2.5 rounded-full transition-all duration-300 ${
+//                         currentSlide === idx
+//                           ? "w-8 bg-[#D9A65A]"
+//                           : "w-2.5 bg-[#F7F5EF]/30 hover:bg-[#F7F5EF]/60"
+//                       }`}
+//                     />
+//                   ))}
+//                 </div>
+
+//                 <div className="flex items-center gap-2">
+//                   <button
+//                     onClick={prevSlide}
+//                     aria-label="Previous slide"
+//                     className="w-9 h-9 rounded-full bg-[#F7F5EF]/10 hover:bg-[#D9A65A] hover:text-[#202824] flex items-center justify-center transition-colors"
+//                   >
+//                     <ChevronLeft className="w-4 h-4" />
+//                   </button>
+//                   <button
+//                     onClick={nextSlide}
+//                     aria-label="Next slide"
+//                     className="w-9 h-9 rounded-full bg-[#F7F5EF]/10 hover:bg-[#D9A65A] hover:text-[#202824] flex items-center justify-center transition-colors"
+//                   >
+//                     <ChevronRight className="w-4 h-4" />
+//                   </button>
+//                 </div>
+//               </div>
+//             </div>
+
+//             {/* Right Floating Trust & Cold-Chain Bento */}
+//             <motion.div
+//               initial={{ opacity: 0, scale: 0.94 }}
+//               animate={{ opacity: 1, scale: 1 }}
+//               transition={{ duration: 0.7, delay: 0.2 }}
+//               className="lg:col-span-5 grid grid-cols-2 gap-3 sm:gap-4"
+//             >
+//               {[
+//                 {
+//                   icon: ThermometerSnowflake,
+//                   title: "Cold-Chain",
+//                   desc: "0–4°C Temp Tracked",
+//                 },
+//                 {
+//                   icon: ShieldCheck,
+//                   title: "Batch Verified",
+//                   desc: "Expiry & Health Logs",
+//                 },
+//                 {
+//                   icon: Truck,
+//                   title: "Express Dispatch",
+//                   desc: "Slot-Based Delivery",
+//                 },
+//                 {
+//                   icon: Award,
+//                   title: "100% Traceable",
+//                   desc: "Direct Farm & Lab",
+//                 },
+//               ].map((item, i) => (
+//                 <motion.div
+//                   key={item.title}
+//                   whileHover={{ y: -4 }}
+//                   transition={{ delay: i * 0.05 }}
+//                   className="p-4 sm:p-5 rounded-2xl bg-[#F7F5EF]/10 backdrop-blur-md border border-[#F7F5EF]/15 space-y-2"
+//                 >
+//                   <div className="w-10 h-10 rounded-xl bg-[#D9A65A]/20 text-[#D9A65A] flex items-center justify-center">
+//                     <item.icon className="w-5 h-5" />
+//                   </div>
+//                   <h3 className="font-bold text-sm sm:text-base text-white">
+//                     {item.title}
+//                   </h3>
+//                   <p className="text-xs text-[#F7F5EF]/70">{item.desc}</p>
+//                 </motion.div>
+//               ))}
+//             </motion.div>
+//           </div>
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }

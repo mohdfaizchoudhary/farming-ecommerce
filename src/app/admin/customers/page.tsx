@@ -1,65 +1,116 @@
 "use client";
 
+import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { CalendarDays, Clock3, Mail, Phone, Search, UserCheck } from "lucide-react";
 import { useStore } from "@/components/StoreProvider";
 
-export default function Page() {
-  const { customers, orders } = useStore();
+export default function AdminCustomersPage() {
+  const { customers } = useStore();
+  const [query, setQuery] = useState("");
+
+  const filteredCustomers = useMemo(() => {
+    const search = query.trim().toLowerCase();
+    if (!search) return customers;
+    return customers.filter((customer) =>
+      customer.fullName.toLowerCase().includes(search)
+      || customer.email.toLowerCase().includes(search)
+      || customer.phone.toLowerCase().includes(search),
+    );
+  }, [customers, query]);
 
   return (
-    <div>
-      <p className="eyebrow">Relationships</p>
-      <h1 className="section-title mt-2">Customers</h1>
-      <p className="mt-3 text-sm text-charcoal/60">
-        Customer contact and delivery details are saved when they sign in or place an order.
-      </p>
-      <p className="mt-2 text-xs leading-5 text-charcoal/50">
-        This demo stores records in this browser only. Use protected server-side storage before handling customer data in production.
-      </p>
-      <div className="mt-5 space-y-3">
-        {customers.map((customer) => {
-          const customerOrders = orders.filter((order) =>
-            order.customerId === customer.id
-            || order.customerEmail?.toLowerCase() === customer.email.toLowerCase(),
-          );
-          const latestAddress = customerOrders.find((order) => order.customerAddress)?.customerAddress;
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#123C32]/60">
+            Registered Accounts
+          </span>
+          <h1 className="font-serif text-2xl sm:text-4xl font-bold text-[#123C32] mt-1">
+            Customer Directory
+          </h1>
+          <p className="mt-2 text-xs text-[#202824]/60">
+            Only customer accounts observed through sign-in are listed. Records are saved in this browser.
+          </p>
+        </div>
 
-          return (
-            <article key={customer.id} className="rounded-2xl bg-white p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-serif text-xl text-forest">{customer.fullName}</h2>
-                  <p className="mt-1 break-all text-sm text-charcoal/65">{customer.email}</p>
+        <label className="relative w-full sm:w-80">
+          <span className="sr-only">Search customers by name, email or phone</span>
+          <Search className="w-4 h-4 text-[#123C32]/45 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search name, email or phone..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-[#123C32]/15 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#123C32]"
+          />
+        </label>
+      </div>
+
+      <p className="text-xs text-[#202824]/60" aria-live="polite">
+        {filteredCustomers.length} {filteredCustomers.length === 1 ? "registered customer" : "registered customers"}
+      </p>
+
+      {filteredCustomers.length ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredCustomers.map((customer, index) => (
+            <motion.article
+              key={customer.id}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.06 }}
+              whileHover={{ y: -4 }}
+              className="bg-white rounded-3xl p-6 border border-[#123C32]/10 shadow-sm hover:shadow-xl transition-all"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#123C32] text-[#D9A65A] font-serif text-xl font-bold flex items-center justify-center">
+                  {customer.fullName.trim().charAt(0).toUpperCase() || "?"}
                 </div>
-                <span className="rounded-full bg-sage px-3 py-1 text-xs font-medium text-forest">
-                  {customerOrders.length} {customerOrders.length === 1 ? "order" : "orders"}
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#E5EDE6] text-[#123C32] text-xs font-bold">
+                  <UserCheck className="w-3.5 h-3.5" /> Registered
                 </span>
               </div>
-              <dl className="mt-4 grid gap-3 border-t border-forest/10 pt-4 text-sm sm:grid-cols-2">
-                <div><dt className="text-xs text-charcoal/50">Phone</dt><dd className="mt-1 break-words">{customer.phone || "Not provided"}</dd></div>
-                <div><dt className="text-xs text-charcoal/50">Delivery address</dt><dd className="mt-1 whitespace-pre-wrap break-words">{customer.address || latestAddress || "Not provided"}</dd></div>
-                <div><dt className="text-xs text-charcoal/50">Customer since</dt><dd className="mt-1">{new Date(customer.createdAt).toLocaleDateString()}</dd></div>
-                <div><dt className="text-xs text-charcoal/50">Last seen</dt><dd className="mt-1">{new Date(customer.lastSeenAt).toLocaleDateString()}</dd></div>
-              </dl>
-              {customerOrders.length > 0 && (
-                <div className="mt-4 border-t border-forest/10 pt-4">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-charcoal/55">Recent orders</h3>
-                  <ul className="mt-2 space-y-1 text-sm">
-                    {customerOrders.slice(0, 3).map((order) => (
-                      <li key={order.id} className="flex flex-wrap justify-between gap-2">
-                        <span>{order.id} · {new Date(order.date).toLocaleDateString()}</span>
-                        <span className="capitalize text-charcoal/60">{order.status}</span>
-                      </li>
-                    ))}
-                  </ul>
+
+              <h2 className="font-serif text-xl font-bold text-[#123C32] mt-4">
+                {customer.fullName}
+              </h2>
+              <div className="mt-2 space-y-2 text-xs text-[#202824]/70">
+                <p className="flex items-center gap-2 break-all">
+                  <Mail className="w-3.5 h-3.5 shrink-0 text-[#123C32]" />
+                  {customer.email}
+                </p>
+                <p className="flex items-center gap-2 break-words">
+                  <Phone className="w-3.5 h-3.5 shrink-0 text-[#123C32]" />
+                  {customer.phone || "Phone not provided"}
+                </p>
+              </div>
+
+              <dl className="mt-6 pt-4 border-t border-[#123C32]/10 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <dt className="flex items-center gap-1 text-[#202824]/50">
+                    <CalendarDays className="w-3.5 h-3.5" /> Registered
+                  </dt>
+                  <dd className="mt-1 font-semibold text-[#123C32]">
+                    {new Date(customer.createdAt).toLocaleDateString()}
+                  </dd>
                 </div>
-              )}
-            </article>
-          );
-        })}
-      </div>
-      {!customers.length && (
-        <p className="mt-5 rounded-2xl bg-white p-6 text-sm text-charcoal/60">
-          No customers saved in this browser yet. Customer profiles will appear here after sign-in.
+                <div>
+                  <dt className="flex items-center gap-1 text-[#202824]/50">
+                    <Clock3 className="w-3.5 h-3.5" /> Last seen
+                  </dt>
+                  <dd className="mt-1 font-semibold text-[#123C32]">
+                    {new Date(customer.lastSeenAt).toLocaleDateString()}
+                  </dd>
+                </div>
+              </dl>
+            </motion.article>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-2xl bg-white p-6 text-sm text-[#202824]/60">
+          {customers.length
+            ? "No registered customers match your search."
+            : "No registered customer accounts have signed in on this browser yet."}
         </p>
       )}
     </div>

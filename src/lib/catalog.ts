@@ -10,6 +10,9 @@ export type Product = {
   description: string;
   image: string;
   stock: number;
+  handling?: "Cold-Chain" | "Live Certified" | "Standard";
+  variantType?: string;
+  published?: boolean;
 };
 
 export const categories: Category[] = [
@@ -22,13 +25,30 @@ export const categories: Category[] = [
   { slug: "rabbit", name: "Rabbit", emoji: "🐇", description: "Browse rabbit listings and connect with suppliers.", parentSlug: "poultry-buy-sell" },
   { slug: "breeding-rabbits", name: "Breeding Rabbits", emoji: "🐇", description: "Find breeding rabbits and review breed and health details.", parentSlug: "rabbit" },
   { slug: "pet-rabbits", name: "Pet Rabbits", emoji: "🐰", description: "Explore rabbits offered as pets.", parentSlug: "rabbit" },
+  { slug: "farming-livestock", name: "Farming & Livestock", emoji: "🐓", description: "Farm livestock and poultry products." },
+  { slug: "eggs-foods", name: "Egg Store & Egg-Based Foods", emoji: "🥚", description: "Shop eggs and a variety of egg-based foods." },
+  { slug: "ready-to-cook", name: "Ready-to-Eat / Ready-to-Cook Foods", emoji: "🍗", description: "Explore prepared foods for quick meals and cooking." },
+  { slug: "raw-meat", name: "Raw Chicken & Meat", emoji: "🍖", description: "Fresh and chilled meat products." },
+  { slug: "supplements", name: "Supplements & Personal Care", emoji: "🌿", description: "Browse supplements and everyday personal care products." },
+  { slug: "skincare-beauty", name: "Skincare & Beauty", emoji: "✨", description: "Skincare and beauty products." },
+  { slug: "pet-products", name: "Pet Products", emoji: "🐾", description: "Explore products for pets and their daily care." },
 ];
 
 export const topLevelCategories = categories.filter((category) => !category.parentSlug);
-export const shopCategories = [
-  ...topLevelCategories,
-  ...categories.filter((category) => category.slug === "breeding-rabbits" || category.slug === "pet-rabbits"),
-];
+const shopCategorySlugs = [
+  "eggs-foods",
+  "ready-to-cook",
+  "raw-meat",
+  "supplements",
+  "skincare-beauty",
+  "pet-products",
+  "breeding-rabbits",
+  "pet-rabbits",
+] as const;
+export const shopCategories = shopCategorySlugs.flatMap((slug) => {
+  const category = categories.find((entry) => entry.slug === slug);
+  return category ? [category] : [];
+});
 
 export function getCategoryAndDescendantSlugs(categorySlug: string): Set<string> {
   const slugs = new Set([categorySlug]);
@@ -72,11 +92,11 @@ export const products: Product[] = [
 
 export const money = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
-const CATALOG_STORAGE_KEY = "p1-catalog-products-v2";
+export const CATALOG_STORAGE_KEY = "p1-catalog-products-v2";
 const LEGACY_CATALOG_STORAGE_KEY = "p1-catalog-products";
 const categorySlugs = new Set(categories.map((category) => category.slug));
 
-function isMarketplaceProduct(value: unknown): value is Product {
+export function isMarketplaceProduct(value: unknown): value is Product {
   if (typeof value !== "object" || value === null) return false;
   const product = value as Record<string, unknown>;
   return typeof product.id === "string"
