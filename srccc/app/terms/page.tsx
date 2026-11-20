@@ -1,0 +1,1 @@
+export default function Page(){return <div className="container-shell max-w-3xl py-12"><h1 className="section-title">Terms & conditions</h1><p className="mt-5 rounded-2xl bg-white p-6 text-sm leading-7 text-charcoal/60">Placeholder only. Have terms prepared for your actual products, pricing, fulfilment, payments, cancellations and disputes with qualified legal review.</p></div>}

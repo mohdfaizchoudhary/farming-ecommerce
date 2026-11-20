@@ -1,6 +1,6 @@
 const REDIRECT_ORIGIN = "https://sms-farmstead.invalid";
 
-export function getSafeNextPath(value: string | null, fallback = "/profile"): string {
+export function getSafeNextPath(value: string | null, fallback = "/"): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\") || /[\u0000-\u001f]/.test(value)) {
     return fallback;
   }

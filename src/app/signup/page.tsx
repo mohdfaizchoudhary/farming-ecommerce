@@ -16,13 +16,13 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [nextPath, setNextPath] = useState("/profile");
+  const [nextPath, setNextPath] = useState("/");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const destination = getSafeNextPath(new URLSearchParams(window.location.search).get("next"));
+    const destination = getSafeNextPath(new URLSearchParams(window.location.search).get("next"), "/");
     setNextPath(destination);
     if (!authLoading && session) router.replace(destination);
   }, [authLoading, router, session]);
@@ -49,7 +49,7 @@ export default function SignupPage() {
         return;
       }
       if (data.session) {
-        const destination = getSafeNextPath(new URLSearchParams(window.location.search).get("next"));
+        const destination = getSafeNextPath(new URLSearchParams(window.location.search).get("next"), "/");
         router.replace(destination);
       } else {
         setMessage("Account created. Check your email to confirm your account, then sign in.");
@@ -175,7 +175,7 @@ export default function SignupPage() {
         <p className="text-xs text-center text-[#202824]/70 mt-6">
           Already have an account?{" "}
           <Link
-            href={nextPath === "/profile" ? "/login" : `/login?next=${encodeURIComponent(nextPath)}`}
+            href={nextPath === "/" ? "/login" : `/login?next=${encodeURIComponent(nextPath)}`}
             className="font-bold text-[#123C32] hover:text-[#D9A65A] underline"
           >
             Sign in

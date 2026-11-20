@@ -14,12 +14,12 @@ export default function LoginPage() {
   const { session, loading: authLoading, configured, authError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [nextPath, setNextPath] = useState("/profile");
+  const [nextPath, setNextPath] = useState("/");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const destination = getSafeNextPath(new URLSearchParams(window.location.search).get("next"));
+    const destination = getSafeNextPath(new URLSearchParams(window.location.search).get("next"), "/");
     setNextPath(destination);
     if (!authLoading && session) router.replace(destination);
   }, [authLoading, router, session]);
@@ -40,7 +40,7 @@ export default function LoginPage() {
         setError(signInError.message);
         return;
       }
-      const destination = getSafeNextPath(new URLSearchParams(window.location.search).get("next"));
+      const destination = getSafeNextPath(new URLSearchParams(window.location.search).get("next"), "/");
       router.replace(destination);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to sign in. Please try again.");
@@ -134,7 +134,7 @@ export default function LoginPage() {
         <p className="text-xs text-center text-[#202824]/70 mt-6">
           New to SMS Marketplace?{" "}
           <Link
-            href={nextPath === "/profile" ? "/signup" : `/signup?next=${encodeURIComponent(nextPath)}`}
+            href={nextPath === "/" ? "/signup" : `/signup?next=${encodeURIComponent(nextPath)}`}
             className="font-bold text-[#123C32] hover:text-[#D9A65A] underline"
           >
             Create an account
