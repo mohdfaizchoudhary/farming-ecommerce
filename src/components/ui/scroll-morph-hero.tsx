@@ -45,6 +45,7 @@ type ArcLayout = {
 const IMAGE_WIDTH = 60;
 const IMAGE_HEIGHT = 85;
 const MAX_SCROLL = 3000;
+const MOBILE_SCROLL_MULTIPLIER = 1.5;
 
 const FARM_IMAGES: FarmImage[] = [
   {
@@ -200,23 +201,36 @@ function FlipCard({
   const y = useTransform(liveTarget, (value) => value.y);
   const rotate = useTransform(liveTarget, (value) => value.rotate);
   const scale = useTransform(liveTarget, (value) => value.scale);
+  const springConfig = reduceMotion
+    ? { stiffness: 1000, damping: 100 }
+    : { stiffness: 40, damping: 15 };
+  const springX = useSpring(x, springConfig);
+  const springY = useSpring(y, springConfig);
+  const springRotate = useSpring(rotate, springConfig);
+  const springScale = useSpring(scale, springConfig);
 
   return (
     <motion.div
-      animate={phase === "circle" ? undefined : {
-        x: target.x,
-        y: target.y,
-        rotate: target.rotation,
-        scale: target.scale,
-        opacity: target.opacity,
-      }}
+      animate={
+        phase === "circle"
+          ? undefined
+          : {
+              x: target.x,
+              y: target.y,
+              rotate: target.rotation,
+              scale: target.scale,
+              opacity: target.opacity,
+            }
+      }
       transition={
         reduceMotion
           ? { duration: 0 }
           : { type: "spring", stiffness: 40, damping: 15 }
       }
       style={{
-        ...(phase === "circle" ? { x, y, rotate, scale, opacity: 1 } : {}),
+        ...(phase === "circle"
+          ? { x: springX, y: springY, rotate: springRotate, scale: springScale, opacity: 1 }
+          : {}),
         position: "absolute",
         top: "50%",
         left: "50%",
@@ -343,7 +357,7 @@ export default function ScrollMorphHero() {
       if (touchY === undefined) return;
       const delta = touchStartY - touchY;
       touchStartY = touchY;
-      if (!updateVirtualScroll(delta)) return;
+      if (!updateVirtualScroll(delta * MOBILE_SCROLL_MULTIPLIER)) return;
       event.preventDefault();
     };
 
@@ -402,6 +416,9 @@ export default function ScrollMorphHero() {
   const contentOpacity = useTransform(smoothMorph, [0.8, 1], [0, 1]);
   const contentY = useTransform(smoothMorph, [0.8, 1], [20, 0]);
   const introOpacity = useTransform(smoothMorph, [0, 0.5], [1, 0]);
+  const introBlur = useTransform(smoothMorph, (value) =>
+    value < 0.5 ? "blur(0px)" : "blur(10px)",
+  );
 
   return (
     <section
@@ -422,7 +439,10 @@ export default function ScrollMorphHero() {
             className="flex flex-col items-center justify-center text-center"
             initial={{ opacity: 0, y: 20, filter: "blur(10px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            style={{ opacity: introPhase === "circle" ? introOpacity : undefined }}
+            style={{
+              opacity: introPhase === "circle" ? introOpacity : undefined,
+              filter: introPhase === "circle" ? introBlur : undefined,
+            }}
             transition={{ duration: reduceMotion ? 0 : 1 }}
           >
             <h1 className="text-3xl font-semibold tracking-[-.06em] text-[#294B36] sm:text-5xl">
