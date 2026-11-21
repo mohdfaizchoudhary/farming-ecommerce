@@ -8,6 +8,7 @@ import {
   useSpring,
   useTransform,
 } from "framer-motion";
+import type { MotionValue } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type AnimationPhase = "scatter" | "line" | "circle";
@@ -24,6 +25,21 @@ type CardTarget = {
   rotation: number;
   scale: number;
   opacity: number;
+};
+
+type CirclePosition = {
+  x: number;
+  y: number;
+  rotation: number;
+};
+
+type ArcLayout = {
+  radius: number;
+  centerY: number;
+  startAngle: number;
+  angleStep: number;
+  spreadAngle: number;
+  scale: number;
 };
 
 const IMAGE_WIDTH = 60;
@@ -140,16 +156,54 @@ function FlipCard({
   image,
   index,
   target,
+  phase,
+  circlePosition,
+  arcLayout,
+  morph,
+  scrollRotation,
+  parallax,
   reduceMotion,
 }: {
   image: FarmImage;
   index: number;
   target: CardTarget;
+  phase: AnimationPhase;
+  circlePosition: CirclePosition;
+  arcLayout: ArcLayout;
+  morph: MotionValue<number>;
+  scrollRotation: MotionValue<number>;
+  parallax: MotionValue<number>;
   reduceMotion: boolean;
 }) {
+  const liveTarget = useTransform(
+    [morph, scrollRotation, parallax],
+    ([morphValue, rotationValue, parallaxValue]: number[]) => {
+      const progress = clamp(rotationValue / 360, 0, 1);
+      const arcAngle =
+        arcLayout.startAngle +
+        index * arcLayout.angleStep -
+        progress * arcLayout.spreadAngle * 0.8;
+      const arcRadians = (arcAngle * Math.PI) / 180;
+      const arcX = Math.cos(arcRadians) * arcLayout.radius + parallaxValue;
+      const arcY = Math.sin(arcRadians) * arcLayout.radius + arcLayout.centerY;
+      const circleWeight = 1 - morphValue;
+
+      return {
+        x: circlePosition.x * circleWeight + arcX * morphValue,
+        y: circlePosition.y * circleWeight + arcY * morphValue,
+        rotate: circlePosition.rotation * circleWeight + (arcAngle + 90) * morphValue,
+        scale: circleWeight + arcLayout.scale * morphValue,
+      };
+    },
+  );
+  const x = useTransform(liveTarget, (value) => value.x);
+  const y = useTransform(liveTarget, (value) => value.y);
+  const rotate = useTransform(liveTarget, (value) => value.rotate);
+  const scale = useTransform(liveTarget, (value) => value.scale);
+
   return (
     <motion.div
-      animate={{
+      animate={phase === "circle" ? undefined : {
         x: target.x,
         y: target.y,
         rotate: target.rotation,
@@ -162,6 +216,7 @@ function FlipCard({
           : { type: "spring", stiffness: 40, damping: 15 }
       }
       style={{
+        ...(phase === "circle" ? { x, y, rotate, scale, opacity: 1 } : {}),
         position: "absolute",
         top: "50%",
         left: "50%",
@@ -344,23 +399,9 @@ export default function ScrollMorphHero() {
     [],
   );
 
-  const [morphValue, setMorphValue] = useState(0);
-  const [rotateValue, setRotateValue] = useState(0);
-  const [parallaxValue, setParallaxValue] = useState(0);
-
-  useEffect(() => {
-    const unsubscribeMorph = smoothMorph.on("change", setMorphValue);
-    const unsubscribeRotate = smoothScrollRotate.on("change", setRotateValue);
-    const unsubscribeParallax = smoothMouseX.on("change", setParallaxValue);
-    return () => {
-      unsubscribeMorph();
-      unsubscribeRotate();
-      unsubscribeParallax();
-    };
-  }, [smoothMorph, smoothScrollRotate, smoothMouseX]);
-
   const contentOpacity = useTransform(smoothMorph, [0.8, 1], [0, 1]);
   const contentY = useTransform(smoothMorph, [0.8, 1], [20, 0]);
+  const introOpacity = useTransform(smoothMorph, [0, 0.5], [1, 0]);
 
   return (
     <section
@@ -380,15 +421,8 @@ export default function ScrollMorphHero() {
           <motion.div
             className="flex flex-col items-center justify-center text-center"
             initial={{ opacity: 0, y: 20, filter: "blur(10px)" }}
-            animate={
-              introPhase !== "circle" || morphValue < 0.5
-                ? {
-                    opacity: introPhase === "circle" ? 1 - morphValue * 2 : 1,
-                    y: 0,
-                    filter: "blur(0px)",
-                  }
-                : { opacity: 0, filter: "blur(10px)" }
-            }
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            style={{ opacity: introPhase === "circle" ? introOpacity : undefined }}
             transition={{ duration: reduceMotion ? 0 : 1 }}
           >
             <h1 className="text-3xl font-semibold tracking-[-.06em] text-[#294B36] sm:text-5xl">
@@ -418,62 +452,29 @@ export default function ScrollMorphHero() {
 
         <div className="relative flex h-full w-full items-center justify-center">
           {FARM_IMAGES.map((image, index) => {
-            let target: CardTarget = {
-              ...scatterPositions[index],
-            };
-
-            if (introPhase === "line") {
-              const spacing = 70;
-              const lineWidth = FARM_IMAGES.length * spacing;
-              target = {
-                x: index * spacing - lineWidth / 2 + spacing / 2,
-                y: 0,
-                rotation: 0,
-                scale: 1,
-                opacity: 1,
-              };
-            } else if (introPhase === "circle") {
-              const isMobile = containerSize.width < 768;
-              const minDimension = Math.min(containerSize.width, containerSize.height);
-              const circleRadius = Math.min(minDimension * 0.35, 350);
-              const circleAngle = (index / FARM_IMAGES.length) * 360;
-              const circleRadians = (circleAngle * Math.PI) / 180;
-              const circlePosition = {
-                x: Math.cos(circleRadians) * circleRadius,
-                y: Math.sin(circleRadians) * circleRadius,
-                rotation: circleAngle + 90,
-              };
-
-              const spreadAngle = isMobile ? 100 : 130;
-              const halfSpreadRadians = (spreadAngle / 2) * Math.PI / 180;
-              const arcRadius = Math.min(
-                containerSize.height * 1.25,
-                (containerSize.width * 0.46) / Math.sin(halfSpreadRadians),
-              );
-              const arcApexY = containerSize.height * (isMobile ? 0.3 : 0.22);
-              const arcCenterY = arcApexY + arcRadius;
-              const startAngle = -90 - spreadAngle / 2;
-              const angleStep = spreadAngle / (FARM_IMAGES.length - 1);
-              const scrollProgress = clamp(rotateValue / 360, 0, 1);
-              const shift = -scrollProgress * spreadAngle * 0.8;
-              const arcAngle = startAngle + index * angleStep + shift;
-              const arcRadians = (arcAngle * Math.PI) / 180;
-              const arcPosition = {
-                x: Math.cos(arcRadians) * arcRadius + parallaxValue,
-                y: Math.sin(arcRadians) * arcRadius + arcCenterY,
-                rotation: arcAngle + 90,
-                scale: isMobile ? 1.35 : 1.7,
-              };
-
-              const morph = morphValue;
-              target = {
-                x: circlePosition.x * (1 - morph) + arcPosition.x * morph,
-                y: circlePosition.y * (1 - morph) + arcPosition.y * morph,
-                rotation: circlePosition.rotation * (1 - morph) + arcPosition.rotation * morph,
-                scale: 1 * (1 - morph) + arcPosition.scale * morph,
-                opacity: 1,
-              };
-            }
+            const spacing = 70;
+            const lineWidth = FARM_IMAGES.length * spacing;
+            const target: CardTarget = introPhase === "line"
+              ? {
+                  x: index * spacing - lineWidth / 2 + spacing / 2,
+                  y: 0,
+                  rotation: 0,
+                  scale: 1,
+                  opacity: 1,
+                }
+              : { ...scatterPositions[index] };
+            const isMobile = containerSize.width < 768;
+            const minDimension = Math.min(containerSize.width, containerSize.height);
+            const circleRadius = Math.min(minDimension * 0.35, 350);
+            const circleAngle = (index / FARM_IMAGES.length) * 360;
+            const circleRadians = (circleAngle * Math.PI) / 180;
+            const spreadAngle = isMobile ? 100 : 130;
+            const halfSpreadRadians = (spreadAngle / 2) * Math.PI / 180;
+            const arcRadius = Math.min(
+              containerSize.height * 1.25,
+              (containerSize.width * 0.46) / Math.sin(halfSpreadRadians),
+            );
+            const arcApexY = containerSize.height * (isMobile ? 0.3 : 0.22);
 
             return (
               <FlipCard
@@ -481,6 +482,23 @@ export default function ScrollMorphHero() {
                 image={image}
                 index={index}
                 target={target}
+                phase={introPhase}
+                circlePosition={{
+                  x: Math.cos(circleRadians) * circleRadius,
+                  y: Math.sin(circleRadians) * circleRadius,
+                  rotation: circleAngle + 90,
+                }}
+                arcLayout={{
+                  radius: arcRadius,
+                  centerY: arcApexY + arcRadius,
+                  startAngle: -90 - spreadAngle / 2,
+                  angleStep: spreadAngle / (FARM_IMAGES.length - 1),
+                  spreadAngle,
+                  scale: isMobile ? 1.35 : 1.7,
+                }}
+                morph={smoothMorph}
+                scrollRotation={smoothScrollRotate}
+                parallax={smoothMouseX}
                 reduceMotion={reduceMotion}
               />
             );
