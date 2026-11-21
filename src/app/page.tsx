@@ -1,7 +1,7 @@
 // import Link from "next/link";
 // import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, Handshake, PackageSearch, Truck } from "lucide-react";
 // import { shopCategories } from "@/lib/catalog";
-// import HomeHero from "@/components/HomeHero";
+// import FloatingFoodHero from "@/components/ui/hero-section-7";
 // import PoultryListingGrid from "@/components/PoultryListingGrid";
 
 // const assurances = [
@@ -23,7 +23,7 @@
 // export default function Home() {
 //   return (
 //     <>
-//       <HomeHero />
+//       <FloatingFoodHero />
 
 //       <section className="border-b border-[#dce6df] bg-white">
 //         <div className="container-shell grid gap-5 py-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -162,9 +162,15 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useAnimationControls,
+  useReducedMotion,
+} from "framer-motion";
+
 import {
   ArrowDownRight,
   ArrowRight,
@@ -182,8 +188,9 @@ import {
   Truck,
 } from "lucide-react";
 import { shopCategories } from "@/lib/catalog";
-import HomeHero from "@/components/HomeHero";
+import ScrollMorphHero from "@/components/ui/scroll-morph-hero";
 import PoultryListingGrid from "@/components/PoultryListingGrid";
+import ReelmarkHero from "@/components/ReelmarkHero";
 
 const assurances = [
   {
@@ -259,6 +266,8 @@ const sisterStores = [
   },
 ];
 
+const storeCardRotations = [-1.5, 1, -0.5, 1.5, -1, 0.75];
+
 const tradeHighlights = [
   {
     step: "01",
@@ -326,6 +335,32 @@ export default function Home() {
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [hoveredStore, setHoveredStore] = useState<number | null>(null);
   const [ctaIdx, setCtaIdx] = useState(0);
+  const storeMarqueeControls = useAnimationControls();
+  const prefersReducedMotion = useReducedMotion();
+
+  const startStoreMarquee = useCallback(() => {
+    if (prefersReducedMotion) return;
+
+    void storeMarqueeControls.start({
+      x: "-50%",
+      transition: {
+        duration: 42,
+        ease: "linear",
+        repeat: Infinity,
+        repeatType: "loop",
+      },
+    });
+  }, [prefersReducedMotion, storeMarqueeControls]);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      storeMarqueeControls.set({ x: 0 });
+      return;
+    }
+
+    startStoreMarquee();
+    return () => storeMarqueeControls.stop();
+  }, [prefersReducedMotion, startStoreMarquee, storeMarqueeControls]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -349,10 +384,10 @@ export default function Home() {
   return (
     <div className="bg-[#F7F5EF] text-[#202824] overflow-x-hidden">
       {/* 1. Hero Section */}
-      <HomeHero />
+      <ScrollMorphHero />
 
       {/* 2. Assurances Bar */}
-      <section className="relative z-10 border-y border-[#123C32]/10 bg-white/80 backdrop-blur-md">
+      <section id="about" className="relative z-10 border-y border-[#123C32]/10 bg-white/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid gap-4 py-7 sm:grid-cols-2 lg:grid-cols-4">
           {assurances.map(({ icon: Icon, title, text }, idx) => (
             <motion.article
@@ -535,6 +570,8 @@ export default function Home() {
         </Link>
       </section>
 
+      <ReelmarkHero />
+
       {/* 4. Poultry Listings Section */}
       <section className="bg-[#E5EDE6]/70 border-y border-[#123C32]/10 py-16 sm:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -568,44 +605,35 @@ export default function Home() {
 
           <PoultryListingGrid />
 
-          <Link
-            href="/products"
-            className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-[#123C32] text-[#F7F5EF] text-sm font-semibold sm:hidden"
-          >
-            Browse all listings <ArrowRight size={16} className="text-[#D9A65A]" />
-          </Link>
-        </div>
-      </section>
-
-      {/* 5. Explore Our Other Stores (Architectural Brand Ecosystem Deck) */}
-      <section className="relative py-16 sm:py-24 overflow-hidden">
+                {/* <section className="relative overflow-hidden py-12 sm:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-[2.25rem] sm:rounded-[3rem] bg-[#123C32] text-[#F7F5EF] p-6 sm:p-12 lg:p-16 relative overflow-hidden shadow-2xl">
-            <div className="pointer-events-none absolute -top-28 -right-28 w-96 h-96 rounded-full border border-[#D9A65A]/15" />
-            <div className="pointer-events-none absolute -bottom-36 -left-24 w-96 h-96 rounded-full bg-[#D9A65A]/10 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[2rem] sm:rounded-[2.5rem] border border-white/10 bg-[#0A0A0B] p-6 text-[#F4F1EA] shadow-2xl sm:p-10 lg:p-14">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[42%] bg-gradient-to-b from-white/[0.055] to-transparent" />
+            <div className="pointer-events-none absolute -right-28 -top-32 h-96 w-96 rounded-full border border-white/[0.08]" />
+            <div className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full bg-white/[0.035] blur-3xl" />
 
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10 sm:mb-12"
             >
               <div className="max-w-2xl">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-[#D9A65A]/35 text-xs font-bold uppercase tracking-[0.18em] text-[#D9A65A]">
-                  <Store className="w-3.5 h-3.5" />
+                <div className="inline-flex items-center gap-2 font-mono text-[10px] sm:text-xs font-medium uppercase tracking-[0.16em] text-[#8D8B86]">
+                  <Store className="h-3.5 w-3.5 text-[#F4F1EA]/70" />
                   Discover more from SMS
                 </div>
-                <h2 className="mt-3 font-serif text-3xl sm:text-5xl font-bold text-white leading-tight">
+                <h2 className="mt-3 font-sans text-3xl font-medium leading-tight tracking-[-0.05em] text-[#F4F1EA] sm:text-5xl">
                   Explore our other stores
                 </h2>
-                <p className="mt-3 text-sm sm:text-base leading-6 text-[#F7F5EF]/75">
+                <p className="mt-3 text-sm leading-6 text-[#8D8B86] sm:text-base">
                   Browse our food, wellness, beauty and pet collections on our
                   partner sites, opening in a new tab.
                 </p>
               </div>
 
-              <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#D9A65A] bg-white/5 px-4 py-2.5 rounded-2xl border border-white/10 self-start lg:self-auto">
-                <Compass className="w-4 h-4" />
+              <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/[0.14] bg-white/[0.025] px-4 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-[#F4F1EA]/75 lg:self-auto">
+                <Compass className="h-4 w-4 text-[#8D8B86]" />
                 <span>6 Official SMS Storefronts</span>
               </div>
             </motion.div>
@@ -621,34 +649,34 @@ export default function Home() {
                     rel="noopener noreferrer"
                     onMouseEnter={() => setHoveredStore(index)}
                     onMouseLeave={() => setHoveredStore(null)}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 12 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ duration: 0.45, delay: index * 0.06 }}
-                    whileHover={{ y: -6 }}
+                    transition={{ duration: 0.4, delay: index * 0.05 }}
+                    whileHover={{ y: -3 }}
                     aria-label={`${store.name} — ${store.category} (opens in a new tab)`}
-                    className="group relative flex flex-col justify-between rounded-[1.75rem] border border-white/15 bg-white/[0.06] backdrop-blur-md p-6 transition-all duration-300 hover:bg-[#F7F5EF] hover:border-[#D9A65A] hover:shadow-[0_24px_50px_rgba(0,0,0,0.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D9A65A]"
+                    className="group relative flex flex-col justify-between rounded-2xl border border-white/[0.14] bg-white/[0.025] p-5 transition-[background-color,border-color,box-shadow] duration-300 hover:border-white/30 hover:bg-white/[0.055] hover:shadow-[0_18px_40px_rgba(0,0,0,0.32)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F4F1EA] sm:p-6"
                   >
                     <div
-                      className={`pointer-events-none absolute inset-0 rounded-[1.75rem] bg-gradient-to-br ${store.accent} opacity-70 group-hover:opacity-0 transition-opacity`}
+                      className={`pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br ${store.accent} opacity-30 transition-opacity`}
                     />
 
                     <div className="relative flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3.5">
-                        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white/10 text-2xl sm:text-3xl border border-white/15 transition-all duration-300 group-hover:bg-[#123C32] group-hover:scale-110 group-hover:rotate-3">
+                        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-2xl transition-all duration-300 group-hover:scale-[1.04] group-hover:bg-white/[0.09] sm:text-3xl">
                           {store.icon}
                         </span>
                         <div>
-                          <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-[#D9A65A] group-hover:text-[#123C32]/60">
+                          <span className="block font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[#8D8B86]">
                             Collection 0{index + 1}
                           </span>
-                          <span className="mt-1 inline-block px-2.5 py-0.5 rounded-full bg-white/10 text-[11px] font-semibold text-[#F7F5EF]/90 group-hover:bg-[#E5EDE6] group-hover:text-[#123C32]">
+                          <span className="mt-1 inline-block rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[11px] font-medium text-[#F4F1EA]/80 group-hover:bg-white/[0.08] group-hover:text-[#F4F1EA]">
                             {store.badge}
                           </span>
                         </div>
                       </div>
 
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-[#D9A65A] transition-all duration-300 group-hover:bg-[#123C32] group-hover:text-[#D9A65A]">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-[#8D8B86] transition-all duration-300 group-hover:bg-white/[0.09] group-hover:text-[#F4F1EA]">
                         <ArrowUpRight
                           size={18}
                           className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
@@ -657,26 +685,159 @@ export default function Home() {
                     </div>
 
                     <div className="relative mt-7">
-                      <h3 className="font-serif text-xl sm:text-2xl font-bold text-white group-hover:text-[#123C32] transition-colors">
+                      <h3 className="font-sans text-xl font-medium tracking-[-0.025em] text-[#F4F1EA] sm:text-2xl">
                         {store.name}
                       </h3>
-                      <p className="mt-1.5 text-xs sm:text-sm leading-5 text-[#F7F5EF]/75 group-hover:text-[#202824]/75 transition-colors">
+                      <p className="mt-1.5 text-xs leading-5 text-[#8D8B86] sm:text-sm">
                         {store.category}
                       </p>
                     </div>
 
-                    <div className="relative mt-6 pt-3.5 border-t border-white/10 group-hover:border-[#123C32]/10 flex items-center justify-between text-xs font-bold">
-                      <span className="text-[#D9A65A] group-hover:text-[#123C32] uppercase tracking-wider">
+                    <div className="relative mt-6 flex items-center justify-between border-t border-white/10 pt-3.5 font-mono text-[10px] font-medium uppercase tracking-[0.1em]">
+                      <span className="text-[#F4F1EA]/75">
                         {isHovered ? "Open Partner Store" : "Visit Storefront"}
                       </span>
                       <ExternalLink
                         size={14}
-                        className="text-white/50 group-hover:text-[#123C32] transition-colors"
+                        className="text-[#8D8B86] transition-colors group-hover:text-[#F4F1EA]"
                       />
                     </div>
                   </motion.a>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      </section> */}
+
+          <Link
+            href="/products"
+            className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-[#123C32] text-[#F7F5EF] text-sm font-semibold sm:hidden"
+          >
+            Browse all listings <ArrowRight size={16} className="text-[#D9A65A]" />
+          </Link>
+        </div>
+      </section>
+
+      {/* 5. Explore Our Other Stores */}
+      <section className="relative overflow-hidden py-12 sm:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-[2rem] border border-[#D9A65A]/20 bg-[#123C32] p-6 text-[#F7F5EF] shadow-2xl sm:rounded-[2.5rem] sm:p-10 lg:p-14">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[42%] bg-gradient-to-b from-white/[0.06] to-transparent" />
+            <div className="pointer-events-none absolute -right-28 -top-32 h-96 w-96 rounded-full border border-[#D9A65A]/15" />
+            <div className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full bg-[#D9A65A]/10 blur-3xl" />
+
+            <div className="relative z-10 mb-10 flex flex-col justify-between gap-6 sm:mb-12 lg:flex-row lg:items-end">
+              <div className="max-w-2xl">
+                <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#D9A65A] sm:text-xs">
+                  <Store className="h-3.5 w-3.5" />
+                  Discover more from SMS
+                </div>
+                <h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-white sm:text-5xl">
+                  Explore our other stores
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-[#F7F5EF]/75 sm:text-base">
+                  Browse our food, wellness, beauty and pet collections on our
+                  partner sites, opening in a new tab.
+                </p>
+              </div>
+
+              <div className="inline-flex self-start items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-[#D9A65A] lg:self-auto">
+                <Compass className="h-4 w-4" />
+                <span>6 Official SMS Storefronts</span>
+              </div>
+            </div>
+
+            <div
+              className="relative z-10 -mx-6 overflow-hidden px-6 sm:-mx-10 sm:px-10 lg:-mx-14 lg:px-14 motion-reduce:overflow-x-auto motion-reduce:overscroll-x-contain"
+              onMouseEnter={() => storeMarqueeControls.stop()}
+              onMouseLeave={startStoreMarquee}
+              onTouchStart={() => storeMarqueeControls.stop()}
+              onTouchEnd={startStoreMarquee}
+              onTouchCancel={startStoreMarquee}
+            >
+              <motion.div
+                animate={storeMarqueeControls}
+                className="flex w-max"
+              >
+                {[false, true].map((isDuplicate) => (
+                  <div
+                    key={isDuplicate ? "duplicate-stores" : "stores"}
+                    aria-hidden={isDuplicate || undefined}
+                    className={`flex shrink-0 gap-5 pr-5 ${
+                      isDuplicate ? "motion-reduce:hidden" : ""
+                    }`}
+                  >
+                    {sisterStores.map((store, index) => {
+                      const hoverIndex =
+                        index + (isDuplicate ? sisterStores.length : 0);
+                      const isHovered = hoveredStore === hoverIndex;
+
+                      return (
+                        <motion.a
+                          key={`${store.name}-${isDuplicate ? "duplicate" : "original"}`}
+                          href={store.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          tabIndex={isDuplicate ? -1 : undefined}
+                          onMouseEnter={() => setHoveredStore(hoverIndex)}
+                          onMouseLeave={() => setHoveredStore(null)}
+                          whileHover={{ y: -7, scale: 1.025, rotate: 0 }}
+                          style={{ rotate: storeCardRotations[index] }}
+                          aria-label={`${store.name} — ${store.category} (opens in a new tab)`}
+                          className="group relative flex min-h-[250px] w-[260px] shrink-0 flex-col justify-between overflow-hidden rounded-3xl border border-[#D9A65A]/25 bg-white/[0.075] p-5 shadow-[0_20px_45px_rgba(0,0,0,0.18)] backdrop-blur-md transition-[background-color,border-color,box-shadow] duration-300 hover:border-[#D9A65A]/70 hover:bg-white/[0.13] hover:shadow-[0_22px_55px_rgba(217,166,90,0.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D9A65A] sm:min-h-[270px] sm:w-[300px] sm:p-6 lg:w-[320px]"
+                        >
+                          <div
+                            className={`pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br ${store.accent} opacity-55 transition-opacity duration-300 group-hover:opacity-90`}
+                          />
+                          <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-b from-white/[0.08] via-transparent to-black/[0.12]" />
+
+                          <div className="relative flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3.5">
+                              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-white/15 bg-white/10 text-2xl transition-all duration-300 group-hover:scale-110 group-hover:bg-white/20 sm:text-3xl">
+                                {store.icon}
+                              </span>
+                              <div>
+                                <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-[#D9A65A]">
+                                  Collection 0{index + 1}
+                                </span>
+                                <span className="mt-1 inline-block rounded-full border border-white/10 bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-[#F7F5EF]/90 group-hover:bg-white/20 group-hover:text-white">
+                                  {store.badge}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/10 text-[#D9A65A] transition-all duration-300 group-hover:bg-white/20">
+                              <ArrowUpRight
+                                size={18}
+                                className="transition-transform duration-300 group-hover:-translate-y-1 group-hover:translate-x-1"
+                              />
+                            </span>
+                          </div>
+
+                          <div className="relative mt-7">
+                            <h3 className="font-serif text-xl font-bold text-white sm:text-2xl">
+                              {store.name}
+                            </h3>
+                            <p className="mt-1.5 text-xs leading-5 text-[#F7F5EF]/75 sm:text-sm">
+                              {store.category}
+                            </p>
+                          </div>
+
+                          <div className="relative mt-6 flex items-center justify-between border-t border-white/15 pt-3.5 text-xs font-bold">
+                            <span className="uppercase tracking-wider text-[#D9A65A]">
+                              {isHovered ? "Open Partner Store" : "Visit Storefront"}
+                            </span>
+                            <ExternalLink
+                              size={14}
+                              className="text-white/55 transition-colors group-hover:text-white"
+                            />
+                          </div>
+                        </motion.a>
+                      );
+                    })}
+                  </div>
+                ))}
+              </motion.div>
             </div>
           </div>
         </div>

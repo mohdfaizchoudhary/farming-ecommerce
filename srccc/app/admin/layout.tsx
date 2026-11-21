@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -79,7 +79,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-[70vh] bg-[#eef1ec]">
+    <div className="admin-workspace min-h-[70vh] bg-[#eef1ec]">
       <div className="container-shell grid min-w-0 gap-4 py-4 sm:gap-5 sm:py-6 md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="h-fit rounded-2xl bg-forest p-4 text-white sm:p-5">
           <div className="flex items-center justify-between gap-2">

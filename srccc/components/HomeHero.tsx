@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { gsap } from "gsap";
 
 const slides = [
@@ -10,8 +11,8 @@ const slides = [
   eyebrow: "For rabbit breeders & farms",
   title: "A better way to",
   title2: "grow your rabbit farming business.",
-  description: "Explore rabbit breeds, compare seller details and connect with trusted breeders to find the right rabbits, supplies and opportunities for your farm.",
-  href: "/category/rabbit-farming",
+  description: "Browse breeding and pet rabbit listings, compare seller details and connect directly with trusted breeders.",
+  href: "/category/rabbit",
   ctaLabel: "Explore rabbit farming",
   categoryLabel: "Rabbit farming",
   image: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?auto=format&fit=crop&w=1800&q=90",
@@ -22,7 +23,7 @@ const slides = [
     eyebrow: "For poultry keepers",
     title: "Find the birds",
     title2: "that fit your farm.",
-    description: "Browse layer bird and poultry listings, then connect with suppliers to confirm the details.",
+    description: "Browse layer bird listings and connect with suppliers to confirm breed, age, health records and availability.",
     href: "/category/layer-birds",
     ctaLabel: "Explore layer birds",
     categoryLabel: "Layer birds",
@@ -34,7 +35,7 @@ const slides = [
     eyebrow: "For the next generation",
     title: "Give your chicks",
     title2: "a head start.",
-    description: "Discover chick listings and review batch, breed and availability information with sellers.",
+    description: "Discover day-old and young chick listings, with batch, breed, vaccination and delivery details to review with sellers.",
     href: "/category/chick-sale",
     ctaLabel: "Explore chick sales",
     categoryLabel: "Chick sales",
@@ -46,7 +47,7 @@ const slides = [
     eyebrow: "For poultry buyers",
     title: "Fresh poultry for",
     title2: "your kitchen.",
-    description: "Browse poultry listings and connect with sellers to check product details and availability.",
+    description: "Browse fresh chicken and meat listings, then confirm cut, weight, handling and delivery directly with the seller.",
     href: "/category/chicken-sale",
     ctaLabel: "Explore chicken listings",
     categoryLabel: "Fresh chicken",
@@ -58,7 +59,7 @@ const slides = [
     eyebrow: "For your next hatch",
     title: "Choose the right",
     title2: "hatching egg batch.",
-    description: "Compare egg listings and ask suppliers about breed, collection date and batch availability.",
+    description: "Compare fertile hatching egg listings and ask suppliers about breed, collection date, fertility and batch availability.",
     href: "/category/hatching-eggs",
     ctaLabel: "Browse egg batches",
     categoryLabel: "Egg batches",
@@ -79,10 +80,28 @@ const slides = [
 },
 ];
 
+function useReducedMotionPreference() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
+  }, []);
+
+  return prefersReducedMotion;
+}
+
 export default function HomeHero() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isAutoplayPaused, setIsAutoplayPaused] = useState(false);
+  const prefersReducedMotion = useReducedMotionPreference();
   const rootRef = useRef<HTMLElement>(null);
   const detailsRef = useRef<HTMLDivElement>(null);
+  const backgroundVideoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
   const backgroundRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -92,8 +111,36 @@ export default function HomeHero() {
   const isAnimatingRef = useRef(false);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const detailsTweenRef = useRef<gsap.core.Tween | null>(null);
+  const progressTweenRef = useRef<gsap.core.Tween | null>(null);
+  const imageZoomTweenRef = useRef<gsap.core.Tween | null>(null);
+  const interactionTimeoutRef = useRef<number | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
+  const isHoveredRef = useRef(false);
+  const interactionPausedRef = useRef(false);
   const hasMountedRef = useRef(false);
   const copyHasMountedRef = useRef(false);
+
+  useEffect(() => {
+    const video = backgroundVideoRef.current;
+    if (!video) return;
+
+    if (
+      prefersReducedMotion ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      video.pause();
+      return;
+    }
+
+    const playback = video.play();
+    if (playback) {
+      void playback.catch((error: unknown) => {
+        console.error("Unable to play the homepage hero background video.", error);
+      });
+    }
+
+    return () => video.pause();
+  }, [prefersReducedMotion]);
 
   useLayoutEffect(() => {
     const context = gsap.context(() => {
@@ -103,13 +150,18 @@ export default function HomeHero() {
         scale: 1.04,
       });
       gsap.set(backgroundRefs.current[0], { autoAlpha: 1, scale: 1 });
-      gsap.set(progressRef.current, { scaleX: 1 / slides.length, transformOrigin: "left center" });
-      gsap.set(indicatorRef.current, { scaleX: 1 / slides.length, transformOrigin: "left center" });
+      gsap.set(progressRef.current, { scaleX: 0, transformOrigin: "left center" });
+      gsap.set(indicatorRef.current, { scaleX: 0, transformOrigin: "left center" });
     }, rootRef);
 
     return () => {
       timelineRef.current?.kill();
       detailsTweenRef.current?.kill();
+      progressTweenRef.current?.kill();
+      imageZoomTweenRef.current?.kill();
+      if (interactionTimeoutRef.current !== null) {
+        window.clearTimeout(interactionTimeoutRef.current);
+      }
       context.revert();
     };
   }, []);
@@ -148,7 +200,7 @@ export default function HomeHero() {
     gsap.fromTo(
       copy,
       { autoAlpha: 0, y: 22 },
-      { autoAlpha: 1, y: 0, duration: 0.55, stagger: 0.07, ease: "power3.out" },
+      { autoAlpha: 1, y: 0, duration: 0.55, delay: 0.95, stagger: 0.07, ease: "power3.out" },
     );
   }, [activeIndex]);
 
@@ -166,10 +218,13 @@ export default function HomeHero() {
     isAnimatingRef.current = true;
     timelineRef.current?.kill();
     detailsTweenRef.current?.kill();
+    progressTweenRef.current?.kill();
+    imageZoomTweenRef.current?.kill();
 
     if (reducedMotion) {
       gsap.set(backgroundRefs.current, { zIndex: 0 });
       gsap.set(nextBackground, { autoAlpha: 0, scale: 1, zIndex: 1, clipPath: "inset(0 0 0 0)" });
+      gsap.set(progressRef.current, { scaleX: 0 });
 
       timelineRef.current = gsap.timeline({
         onComplete: () => {
@@ -190,12 +245,12 @@ export default function HomeHero() {
         .to(currentBackground, { autoAlpha: 0, duration: 0.2, ease: "none" }, 0)
         .to(nextBackground, { autoAlpha: 1, duration: 0.2, ease: "none" }, 0)
         .to(detailsRef.current, { autoAlpha: 0.35, duration: 0.1, ease: "none" }, 0)
-        .to(progressRef.current, { scaleX: (nextIndex + 1) / slides.length, duration: 0.2, ease: "none" }, 0)
-        .to(indicatorRef.current, { scaleX: (nextIndex + 1) / slides.length, duration: 0.2, ease: "none" }, 0);
+        .to(indicatorRef.current, { scaleX: 0, duration: 0.2, ease: "none" }, 0);
       return;
     }
 
     gsap.set(backgroundRefs.current, { zIndex: 0 });
+    gsap.set(progressRef.current, { scaleX: 0 });
     gsap.set(nextBackground, {
       autoAlpha: 1,
       zIndex: 1,
@@ -204,14 +259,17 @@ export default function HomeHero() {
     });
 
     const timeline = gsap.timeline({
+      onStart: () => {
+        activeIndexRef.current = nextIndex;
+        setActiveIndex(nextIndex);
+      },
       onComplete: () => {
         gsap.set(currentBackground, { autoAlpha: 0, zIndex: 0, clipPath: "inset(0 0 0 0)" });
         gsap.set(nextBackground, { zIndex: 0, clipPath: "inset(0 0 0 0)" });
-        activeIndexRef.current = nextIndex;
-        setActiveIndex(nextIndex);
-        gsap.set(detailsRef.current, { autoAlpha: 0 });
+        gsap.set(detailsRef.current, { autoAlpha: 0, y: -12 });
         detailsTweenRef.current = gsap.to(detailsRef.current, {
           autoAlpha: 1,
+          y: 0,
           duration: 0.55,
           ease: "power2.out",
           onComplete: () => {
@@ -242,25 +300,8 @@ export default function HomeHero() {
         },
         0,
       )
-      .to(detailsRef.current, { autoAlpha: 0, duration: 0.25, ease: "power1.in" }, 0)
-      .to(
-        progressRef.current,
-        {
-          scaleX: (nextIndex + 1) / slides.length,
-          duration: 0.7,
-          ease: "power2.inOut",
-        },
-        0,
-      )
-      .to(
-        indicatorRef.current,
-        {
-          scaleX: (nextIndex + 1) / slides.length,
-          duration: 0.7,
-          ease: "power2.inOut",
-        },
-        0,
-      );
+      .to(detailsRef.current, { autoAlpha: 0, y: 14, duration: 0.25, ease: "power1.in" }, 0)
+      .to(indicatorRef.current, { scaleX: 0, duration: 0.7, ease: "power2.inOut" }, 0);
   }, []);
 
   const moveSlide = useCallback(
@@ -272,11 +313,106 @@ export default function HomeHero() {
   );
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (!document.hidden) moveSlide(1);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [moveSlide]);
+    if (isAutoplayPaused || document.hidden) {
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      gsap.set(progressRef.current, { scaleX: 0 });
+      const timer = window.setTimeout(() => moveSlide(1), 3000);
+      return () => window.clearTimeout(timer);
+    }
+
+    const activeBackground = backgroundRefs.current[activeIndex];
+    gsap.set(progressRef.current, { scaleX: 0 });
+    progressTweenRef.current = gsap.to(progressRef.current, {
+      scaleX: 1,
+      duration: 3,
+      ease: "none",
+      onComplete: () => {
+        if (!document.hidden) moveSlide(1);
+      },
+    });
+    imageZoomTweenRef.current = gsap.to(activeBackground, {
+      scale: 1.075,
+      duration: 3,
+      delay: isAnimatingRef.current ? 0.95 : 0,
+      ease: "none",
+    });
+
+    if (document.hidden || isHoveredRef.current || interactionPausedRef.current) {
+      progressTweenRef.current.pause();
+      imageZoomTweenRef.current.pause();
+    }
+
+    return () => {
+      progressTweenRef.current?.kill();
+      imageZoomTweenRef.current?.kill();
+    };
+  }, [activeIndex, isAutoplayPaused, moveSlide]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const shouldPause =
+        document.hidden || isHoveredRef.current || interactionPausedRef.current;
+      setIsAutoplayPaused(shouldPause);
+      if (shouldPause) {
+        progressTweenRef.current?.pause();
+        imageZoomTweenRef.current?.pause();
+      } else {
+        progressTweenRef.current?.play();
+        imageZoomTweenRef.current?.play();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  const syncAutoplayPause = useCallback(() => {
+    const shouldPause =
+      document.hidden || isHoveredRef.current || interactionPausedRef.current;
+    setIsAutoplayPaused(shouldPause);
+    if (shouldPause) {
+      progressTweenRef.current?.pause();
+      imageZoomTweenRef.current?.pause();
+    } else {
+      progressTweenRef.current?.play();
+      imageZoomTweenRef.current?.play();
+    }
+  }, []);
+
+  const pauseForInteraction = useCallback(() => {
+    interactionPausedRef.current = true;
+    if (interactionTimeoutRef.current !== null) {
+      window.clearTimeout(interactionTimeoutRef.current);
+    }
+    interactionTimeoutRef.current = window.setTimeout(() => {
+      interactionPausedRef.current = false;
+      interactionTimeoutRef.current = null;
+      syncAutoplayPause();
+    }, 6000);
+    syncAutoplayPause();
+  }, [syncAutoplayPause]);
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLElement>) => {
+    touchStartXRef.current = event.touches[0]?.clientX ?? null;
+    pauseForInteraction();
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
+    const startX = touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (startX === null) return;
+
+    const endX = event.changedTouches[0]?.clientX;
+    if (endX === undefined) return;
+
+    const distance = endX - startX;
+    if (Math.abs(distance) > 48) {
+      moveSlide(distance < 0 ? 1 : -1);
+    }
+  };
 
   const slide = slides[activeIndex];
   const previewSlides = Array.from(
@@ -289,9 +425,31 @@ export default function HomeHero() {
       ref={rootRef}
       className="zeno-gsap-slider"
       aria-label="Featured poultry categories"
+      data-autoplay-paused={isAutoplayPaused}
+      onMouseEnter={() => {
+        isHoveredRef.current = true;
+        syncAutoplayPause();
+      }}
+      onMouseLeave={() => {
+        isHoveredRef.current = false;
+        syncAutoplayPause();
+      }}
+      onPointerDownCapture={pauseForInteraction}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       <div ref={indicatorRef} className="zeno-indicator" aria-hidden="true" />
       <div className="zeno-background" aria-hidden="true">
+        <video
+          ref={backgroundVideoRef}
+          className="zeno-background-video"
+          src="/slider-background.mp4"
+          poster={slide.image}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+        />
         {slides.map((item, index) => (
           <div
             key={item.id}
@@ -355,7 +513,7 @@ export default function HomeHero() {
             }
 
             return (
-              <button
+              <motion.button
                 key={item.id}
                 ref={(node) => {
                   previewRefs.current[index] = node;
@@ -363,11 +521,16 @@ export default function HomeHero() {
                 type="button"
                 className="zeno-preview-card"
                 style={{ backgroundImage: `url("${item.image}")` }}
-                onClick={() => goToSlide(slideIndex)}
+                onClick={() => {
+                  pauseForInteraction();
+                  goToSlide(slideIndex);
+                }}
                 aria-label={`Show ${item.categoryLabel}: ${item.alt}`}
+                whileHover={prefersReducedMotion ? undefined : { scale: 1.025 }}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
               >
                 {previewContent}
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -378,16 +541,36 @@ export default function HomeHero() {
       </Link>
 
       <div className="zeno-pagination">
-        <button type="button" className="zeno-arrow" aria-label="Previous slide" onClick={() => moveSlide(-1)}>
+        <motion.button
+          type="button"
+          className="zeno-arrow"
+          aria-label="Previous slide"
+          onClick={() => {
+            pauseForInteraction();
+            moveSlide(-1);
+          }}
+          whileHover={prefersReducedMotion ? undefined : { scale: 1.06 }}
+          whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
+        >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M15 18 9 12l6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-        </button>
-        <button type="button" className="zeno-arrow" aria-label="Next slide" onClick={() => moveSlide(1)}>
+        </motion.button>
+        <motion.button
+          type="button"
+          className="zeno-arrow"
+          aria-label="Next slide"
+          onClick={() => {
+            pauseForInteraction();
+            moveSlide(1);
+          }}
+          whileHover={prefersReducedMotion ? undefined : { scale: 1.06 }}
+          whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
+        >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-        </button>
+        </motion.button>
         <div className="zeno-progress-container" aria-hidden="true">
           <div className="zeno-progress-background">
             <div ref={progressRef} className="zeno-progress-foreground" />

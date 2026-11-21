@@ -175,7 +175,7 @@ export default function Header() {
 
       {/* Main Sticky Header */}
       <header
-        className={`site-header sticky top-3 z-50 mx-auto w-[90%] max-w-7xl rounded-3xl transition-all duration-300 ${scrolled ? "py-1" : "py-2"}`}
+        className={`site-header sticky top-3 z-50 w-full max-w-none rounded-none transition-all duration-300 ${scrolled ? "py-1" : "py-2"}`}
       >
         <div className="site-header-inner w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 flex items-center justify-between gap-1 sm:gap-4">
           {/* Left: Mobile Menu Trigger + Brand Logo */}

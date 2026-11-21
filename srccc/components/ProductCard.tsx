@@ -158,7 +158,7 @@ export default function ProductCard(props: ProductCardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative bg-white rounded-3xl border border-[#123C32]/10 overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_rgba(18,60,50,0.12)] hover:-translate-y-1.5 flex flex-col justify-between"
+      className="product-card-premium group relative bg-white rounded-3xl border border-[#123C32]/10 overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_rgba(18,60,50,0.12)] hover:-translate-y-1.5 flex flex-col justify-between"
     >
       {/* Top Image & Floating Badges */}
       <Link
